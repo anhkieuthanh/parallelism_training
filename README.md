@@ -1,196 +1,239 @@
-# Huấn luyện song song Pipeline cho các mô hình vượt kích thước bộ nhớ GPU
+# Huấn luyện song song GPT-2 XL trên 2 GPU T4
 
-Tài liệu này trình bày chi tiết về dự án thử nghiệm và so sánh các giải pháp huấn luyện song song mô hình ngôn ngữ lớn (LLM) vượt quá giới hạn bộ nhớ của một GPU đơn lẻ, sử dụng kỹ thuật **Song song hóa đường ống (Pipeline Parallelism - PP)** trên môi trường đa GPU.
+Repo này ghi lại quá trình thử nghiệm huấn luyện `gpt2-xl` trong bối cảnh một GPU T4 16GB không đủ dư địa để giữ toàn bộ activations nếu chạy theo kiểu 1 GPU thông thường. Mục tiêu là so sánh ba hướng:
 
----
+- `1 GPU + Gradient Checkpointing`
+- `2 GPU + PyTorch Native Pipeline Parallelism`
+- `2 GPU + DeepSpeed Pipeline Parallelism`
+
+Nguồn số liệu trong README này được lấy trực tiếp từ:
+
+- Notebook thực nghiệm: [final-version.ipynb](final-version.ipynb)
+- Baseline 1 GPU: [log/step2_metrics.json](log/step2_metrics.json)
+- PyTorch pipeline: [log/pytorch_metrics.json](log/pytorch_metrics.json)
+- DeepSpeed pipeline: [log/step3_deepspeed_metrics.json](log/step3_deepspeed_metrics.json)
 
 ## 1. Bài toán
 
-Khi kích thước của các mô hình ngôn ngữ lớn ngày càng tăng (ví dụ: các mô hình có hàng tỷ đến hàng chục tỷ tham số như GPT-2 XL, OPT-6.7B, LLaMA), việc huấn luyện hoặc tinh chỉnh (fine-tune) chúng đối mặt với giới hạn vật lý của phần cứng:
-- **Tràn bộ nhớ GPU (CUDA Out Of Memory - OOM)**: Một mô hình lớn không thể nằm trọn trong VRAM của một GPU đơn lẻ. Bộ nhớ GPU không chỉ chứa tham số mô hình (weights) mà còn chứa trạng thái bộ tối ưu hóa (optimizer states), gradient, và đặc biệt là các biến kích hoạt trung gian (activations) sinh ra trong quá trình truyền xuôi (forward pass).
-- **Yêu cầu kỹ thuật**: Dự án này giải quyết bài toán huấn luyện mô hình **GPT-2 XL (1.5 tỷ tham số)** trên cấu hình **2 GPU T4 (16GB VRAM mỗi GPU)** bằng cách chia nhỏ mô hình theo chiều dọc (các lớp liên tiếp) thành các phân đoạn (stages) khác nhau, phân phối chúng lên các GPU và áp dụng cơ chế song song hóa đường ống để xử lý dữ liệu theo các gói nhỏ (micro-batches).
+`gpt2-xl` có 48 transformer blocks và khoảng 1.5B tham số. Dù đã dùng `bfloat16` và `AdamW8bit`, bài toán không chỉ nằm ở weights mà còn ở activations, gradients và optimizer states. Với batch đủ lớn để huấn luyện có ý nghĩa, 1 GPU T4 dễ rơi vào `CUDA Out Of Memory`.
 
----
+Repo này đi từ baseline bị giới hạn trên 1 GPU, sau đó tối ưu bằng gradient checkpointing, rồi chuyển sang pipeline parallelism trên 2 GPU để giảm memory pressure và tăng throughput.
 
-## 2. Cấu hình nền tảng, mô hình và tập dữ liệu
+## 2. Cấu hình thực nghiệm
 
-### Cấu hình nền tảng phần cứng
-- **Số lượng GPU**: 2 GPU (NVIDIA Tesla T4, mỗi GPU có 16GB VRAM GDDR6).
-- **Kết nối liên GPU**: NCCL backend hỗ trợ truyền thông điểm-điểm (P2P) nhanh chóng giữa GPU 0 và GPU 1.
+### Phần cứng
 
-### Cấu hình mô hình
-- **Mô hình**: `gpt2-xl`
-- **Số lượng tham số**: 1.55 tỷ tham số.
-- **Số lượng layer**: 48 transformer blocks.
-- **Kiểu dữ liệu (Dtype)**: `torch.bfloat16` (giúp giảm bộ nhớ mô hình đi 50% so với FP32 mà vẫn bảo toàn dải động số học rộng, không cần sử dụng bộ cân bằng thang đo gradient - GradScaler).
+- 2 x NVIDIA Tesla T4
+- 16GB VRAM mỗi GPU
+- NCCL backend cho giao tiếp liên GPU
 
-### Bộ tối ưu hóa (Optimizer)
-- **Thuật toán**: 8-bit AdamW (`bitsandbytes.optim.AdamW8bit`).
-- **Tác dụng**: Giảm dung lượng bộ nhớ dành cho các trạng thái của bộ tối ưu hóa (optimizer states) từ 8 bytes/tham số (ở FP32) xuống còn 2 bytes/tham số (ở INT8), giảm tổng dung lượng VRAM tĩnh cần thiết cho bộ tối ưu hóa xuống khoảng 4 lần.
-- **Tốc độ học (Learning Rate)**: `5e-5`.
+### Mô hình và dữ liệu
 
-### Tập dữ liệu & Tiền xử lý
-- **Tập dữ liệu**: `wikitext` (cấu hình `wikitext-2-raw-v1`, tập `train`).
-- **Độ dài chuỗi tối đa (SEQ_LEN)**: 256 tokens.
-- **Đệm & Cắt chuỗi**: Truncation và Padding được thiết lập về `max_length = 256` sử dụng `GPT2Tokenizer`. Các dòng trống hoặc không có nội dung hữu ích (tổng số lượng input_ids bằng 0) được lọc bỏ hoàn toàn trước khi đưa vào dataloader.
+- Model: `gpt2-xl`
+- Sequence length: `256`
+- Tokenizer/dataset: `wikitext`, cấu hình `wikitext-2-raw-v1`
+- Dtype: `torch.bfloat16`
+- Optimizer: `bitsandbytes.optim.AdamW8bit`
 
----
+### Các script chính
 
-## 3. Các bước thực hiện và cấu hình từng bước
+- OOM demo 1 GPU: [src/baseline_1gpu.py](src/baseline_1gpu.py)
+- 1 GPU + gradient checkpointing: [src/gradient_checkpointing_1gpu.py](src/gradient_checkpointing_1gpu.py)
+- 2 GPU + PyTorch native pipeline: [src/pytorch_2gpu.py](src/pytorch_2gpu.py)
+- 2 GPU + DeepSpeed pipeline: [src/deepspeed_2gpu.py](src/deepspeed_2gpu.py)
+- Vẽ biểu đồ từ log: [plot_charts.py](plot_charts.py)
 
-Quy trình thực nghiệm được chia làm 4 bước tuần tự nhằm đi từ việc mô phỏng lỗi OOM cho đến các giải pháp tối ưu hóa bộ nhớ trên 1 GPU và cuối cùng là song song hóa trên 2 GPU.
+## 3. Thiết kế từng bước
 
-### Bước 1: Mô phỏng lỗi tràn bộ nhớ (OOM Baseline)
-- **Mã nguồn**: `onegpu_baseline.py`
-- **Cấu hình**: Chạy trên **1 GPU**, kiểu dữ liệu `bf16`, bộ tối ưu hóa 8-bit AdamW. Tắt cơ chế Gradient Checkpointing (`Gradient Checkpointing: DISABLED`).
-- **Thông số batch**: `BATCH_SIZE = 3`, `GRAD_ACCUM = 2` (Effective batch size = 6).
-- **Hiện tượng xảy ra**: Quá trình huấn luyện lập tức bị dừng lại ở micro-step đầu tiên do lỗi **CUDA Out Of Memory (OOM)**. Nguyên nhân do toàn bộ các tensor kích hoạt (activations) của 48 blocks GPT-2 XL được tích lũy liên tục và lưu giữ trên VRAM để phục vụ cho quá trình tính đạo hàm ngược (backward pass), vượt quá giới hạn 16GB của GPU T4.
+### Bước 1: OOM demo trên 1 GPU
 
-### Bước 2: Tối ưu hóa bộ nhớ trên 1 GPU với Gradient Checkpointing
-- **Mã nguồn**: `onegpu_GC.py`
-- **Cấu hình**: Chạy trên **1 GPU**, kiểu dữ liệu `bf16`, bộ tối ưu hóa 8-bit AdamW. Kích hoạt tính năng **Gradient Checkpointing** (`model.gradient_checkpointing_enable()`).
-- **Thông số batch**: `BATCH_SIZE = 3`, `GRAD_ACCUM = 2` (Effective batch size = 6).
-- **Cơ chế**: Giải phóng các activation tensor trung gian sau khi hoàn thành forward pass của mỗi block. Trong quá trình backward pass, các activation này sẽ được tính toán lại (recompute) khi cần thiết. 
-- **Kết quả**: Giảm dung lượng VRAM đỉnh (Peak VRAM) xuống dưới 16GB, cho phép huấn luyện thành công GPT-2 XL trên 1 GPU đơn lẻ mà không bị OOM, đổi lại chi phí tính toán tăng thêm khoảng 20-30% thời gian do phải tính toán lại activations.
+`src/baseline_1gpu.py` chạy `gpt2-xl` theo cách trực tiếp trên 1 GPU với:
 
-### Bước 3: Song song hóa đường ống bằng PyTorch Native (Distributed Pipelining)
-- **Mã nguồn**: `ddp_v2.py`
-- **Cấu hình**: Chạy song song trên **2 GPU** bằng thư viện native `torch.distributed.pipelining`. 
-- **Phân chia Stage thủ công (`SPLIT_LAYER = 24`)**:
-  - **Stage 0 (GPU 0)**: Đảm nhận Token Embedding (`wte`), Position Embedding (`wpe`), Dropout (`drop`), và 24 transformer blocks đầu tiên (`t.h[:24]`).
-  - **Stage 1 (GPU 1)**: Nhận đầu ra của Stage 0, xử lý 24 blocks còn lại (`t.h[24:]`), LayerNorm (`ln_f`), và ngõ ra tuyến tính (`lm_head`).
-- **Thông số batch**: `BATCH_SIZE = 16`, `GRAD_ACCUM = 2` (Effective batch size = 32).
-- **Cơ chế Pipeline**: Sử dụng `PipelineStage` và `ScheduleGPipe` để chia Batch dữ liệu thành các nhóm nhỏ (**micro-batches** hay **chunks**). Thực hiện thử nghiệm tuần tự với số lượng chunks gồm: `[2, 4, 8, 16]`.
-- **Hỗ trợ tối ưu bổ sung**: Tích hợp Gradient Checkpointing thủ công (`torch.utils.checkpoint.checkpoint`) trên từng block của mỗi stage.
+- `BATCH_SIZE = 3`
+- `GRAD_ACCUM = 2`
+- `bf16`
+- `AdamW8bit`
+- không bật gradient checkpointing
 
-### Bước 4: Song song hóa đường ống bằng DeepSpeed Pipeline Parallelism
-- **Mã nguồn**: `dp.py`
-- **Cấu hình**: Chạy song song trên **2 GPU** sử dụng thư viện **DeepSpeed** (`deepspeed.PipelineModule`).
-- **Phân chia Stage**: Cấu trúc thành các lớp liên tiếp trong một danh sách và giao cho `deepspeed.PipelineModule` tự động phân chia tải trọng theo dung lượng tham số (`partition_method="parameters"`).
-- **Tích hợp ZeRO-1**: Bật công nghệ **ZeRO Stage 1** trong tệp cấu hình DeepSpeed để phân mảnh trạng thái optimizer (optimizer states partitioning) giữa các GPU, giảm dung lượng VRAM tĩnh xuống mức tối đa.
-- **Thông số batch**: `EFFECTIVE_BS = 16`, chia nhỏ kích thước micro-batch dựa trên số lượng chunks (`micro_batch_size = EFFECTIVE_BS // chunks`). Thử nghiệm tuần tự với chunks = `[4, 8, 16]`.
-- **Trình nạp dữ liệu**: Xây dựng lớp wrapper `DeepSpeedPipelineIterator` trả về đúng định dạng dữ liệu đầu vào song song đường ống là `((inputs), labels)`.
+Mục đích của bước này là tái hiện giới hạn memory và dùng nó làm mốc để so với các bước tối ưu phía sau.
 
----
+### Bước 2: 1 GPU + Gradient Checkpointing
 
-## 4. Phân tích hiện tượng "Bubble" và So sánh hiệu năng
+`src/gradient_checkpointing_1gpu.py` giữ nguyên tinh thần chạy 1 GPU nhưng bật `model.gradient_checkpointing_enable()` để đánh đổi compute lấy VRAM. Đây là baseline “tiết kiệm phần cứng nhất” trong repo.
 
-### Hiện tượng "Bubble" trong Pipeline Parallelism
-Hiện tượng "Bubble" (bong bóng/khoảng trống nhàn rỗi) xảy ra do tính chất tuần tự của Pipeline. GPU ở stage phía sau phải đợi GPU ở stage phía trước xử lý xong và truyền dữ liệu qua kết nối mạng (hoặc truyền P2P giữa các GPU). Ngược lại, trong quá trình backward, các GPU phía trước phải đợi tín hiệu gradient truyền ngược về từ các stage phía sau.
+### Bước 3: 2 GPU + PyTorch Native Pipeline Parallelism
 
-Khoảng thời gian một hoặc nhiều GPU phải nằm chờ nhàn rỗi này được gọi là "Bubble". 
+`src/pytorch_2gpu.py` chia model thành 2 stage thủ công:
 
-Tỷ lệ phần trăm thời gian nhàn rỗi (tỷ lệ Bubble) của một hệ thống có $p$ stages (GPU) huấn luyện một batch được chia thành $m$ micro-batches (chunks) được tính theo công thức:
-$$\text{Bubble Ratio} = \frac{p - 1}{m + p - 1}$$
+- GPU 0: embedding + 24 blocks đầu
+- GPU 1: 24 blocks sau + `ln_f` + `lm_head`
 
-Khi áp dụng vào hệ thống **2 GPU ($p = 2$)**, ta có các tỷ lệ lý thuyết sau:
-- **chunks = 2**: $\frac{2 - 1}{2 + 2 - 1} = 33.33\%$
-- **chunks = 4**: $\frac{2 - 1}{4 + 2 - 1} = 20.00\%$
-- **chunks = 8**: $\frac{2 - 1}{8 + 2 - 1} = 11.11\%$
-- **chunks = 16**: $\frac{2 - 1}{16 + 2 - 1} = 5.88\%$
+Batch được chia thành nhiều `chunks` để giảm pipeline bubble. Repo hiện có log cho `chunks = 2, 4, 8, 16`.
 
-**Nhận xét**: Khi tăng số lượng micro-batches ($m$ hay chunks), tỷ lệ Bubble giảm dần về mức rất thấp. Tuy nhiên, việc chia quá nhiều chunks sẽ làm giảm kích thước của mỗi micro-batch xuống quá nhỏ, dẫn đến GPU không được khai thác hết hiệu năng tính toán song song ma trận (dưới mức bão hòa của nhân Tensor Cores). Do đó cần lựa chọn số lượng chunks hài hòa.
+### Bước 4: 2 GPU + DeepSpeed Pipeline Parallelism
 
----
+`src/deepspeed_2gpu.py` dùng `deepspeed.PipelineModule`, vẫn chia model thành 2 stage nhưng để DeepSpeed quản lý pipeline runtime và kết hợp thêm `ZeRO stage 1`. Repo hiện có log cho `chunks = 4, 8, 16`.
 
-### Đối chiếu PyTorch Native Pipeline và DeepSpeed Pipeline
+## 4. Bubble ratio và ý nghĩa của chunks
 
-| Tiêu chí | PyTorch Native Pipeline (`torch.distributed.pipelining`) | DeepSpeed Pipeline Parallelism |
-| :--- | :--- | :--- |
-| **Kiến trúc & Cực phân** | Yêu cầu định nghĩa module riêng biệt cho từng Stage và cấu hình luồng truyền dữ liệu thủ công. | Chỉ cần xếp các Layer nối tiếp nhau, DeepSpeed tự động phân vùng và tối ưu hóa vị trí đặt các Stage. |
-| **Độ phức tạp lập trình** | **Cao**. Cần viết nhiều mã nguồn bổ trợ (`TensorChunkSpec`, xử lý truyền xuôi/ngược thủ công thông qua `ScheduleGPipe`). | **Thấp**. Tự động hóa hoàn toàn luồng huấn luyện chỉ bằng một câu lệnh `engine.train_batch()`. |
-| **Tích hợp ZeRO** | Phức tạp, khó kết hợp trực tiếp với các tính năng phân mảnh bộ nhớ của FSDP hoặc ZeRO. | **Rất mạnh mẽ**. Tích hợp sẵn ZeRO-1 giúp phân chia optimizer states, giảm bộ nhớ tĩnh cực kỳ hiệu quả. |
-| **Quản lý bộ nhớ VRAM** | Trung bình. VRAM được phân bổ cho mô hình giảm một nửa, nhưng bộ nhớ optimizer states vẫn chiếm dụng tĩnh trên từng GPU. | **Xuất sắc**. Lượng VRAM allocated tĩnh cực kỳ thấp (~1.55GB mỗi GPU so với ~5GB của PyTorch Native). |
-| **Hiệu năng truyền thông** | Sử dụng luồng P2P của PyTorch Distributed. | Tối ưu hóa sâu các gói tin NCCL (reduce_bucket_size, allgather_bucket_size), giảm nghẽn băng thông. |
+Với pipeline parallelism, một phần thời gian GPU sẽ ở trạng thái chờ stage trước/sau. Tỷ lệ chờ lý thuyết:
 
----
+`bubble_ratio = (p - 1) / (m + p - 1)`
 
-### So sánh Pipeline (2 GPU) và Gradient Checkpointing (1 GPU)
-- **Huấn luyện trên 1 GPU + GC**: Tiết kiệm phần cứng (chỉ cần 1 GPU), nhưng tốc độ bị giới hạn và thời gian huấn luyện kéo dài do GPU phải tính toán lại activations trong backward pass. Đồng thời, dung lượng batch size tối đa bị giới hạn nghiêm trọng bởi dung lượng VRAM của 1 card duy nhất.
-- **Huấn luyện trên 2 GPU + Pipeline**: Cho phép huấn luyện các mô hình có kích thước lớn gấp đôi hoặc gấp nhiều lần (bằng cách tăng số stage). Nhờ cơ chế chia luồng dữ liệu song song và phân bổ mô hình, thời gian huấn luyện được rút ngắn đáng kể, hiệu năng tính toán của các GPU được tận dụng hiệu quả hơn khi số lượng chunks tối ưu.
+Trong đó:
 
----
+- `p`: số stage, ở đây là `2`
+- `m`: số micro-batches hay `chunks`
 
-## 5. Kết quả thực nghiệm thực tế
+Khi tăng `chunks`, bubble ratio giảm:
 
-Dưới đây là bảng số liệu thu thập được từ thực nghiệm trên hệ thống 2 GPU T4 (16GB VRAM) được lưu trữ tại thư mục `log/`:
+| Chunks | Bubble ratio |
+| :--: | --: |
+| 2 | 33.33% |
+| 4 | 20.00% |
+| 8 | 11.11% |
+| 16 | 5.88% |
 
-### A. PyTorch Native Pipeline
-*Cấu hình: BATCH_SIZE = 16, GRAD_ACCUM = 2 (Effective Batch Size = 32), SEQ_LEN = 256*
+Đây là lý do cả PyTorch PP lẫn DeepSpeed PP đều cải thiện throughput khi tăng chunks trong cùng một họ cấu hình.
 
-| Số lượng Chunks (m) | Tỷ lệ Bubble (%) | Tốc độ huấn luyện (tokens/sec) | Thời gian một bước (sec/step) | Bộ nhớ đỉnh (Peak VRAM - GB) |
-| :---: | :---: | :---: | :---: | :---: |
-| **2** | 33.33% | 324.8 | 25.224s | 6.18 GB |
-| **4** | 20.00% | 431.0 | 19.010s | 5.99 GB |
-| **8** | 11.11% | 517.7 | 15.825s | 5.97 GB |
-| **16** | 5.88% | 571.4 | 14.336s | 5.96 GB |
+## 5. Kết quả thực nghiệm
 
-**Nhận xét**: 
-- Khi số lượng chunks tăng từ **2 lên 16**, tốc độ huấn luyện tăng rõ rệt từ **324.8 tokens/s lên 571.4 tokens/s** (tăng ~76.5%), trong khi thời gian thực thi mỗi bước giảm tương ứng từ **25.224s xuống còn 14.336s**.
-- Kết quả này hoàn toàn khớp với lý thuyết về hiện tượng Bubble: Tỷ lệ bong bóng nhàn rỗi giảm mạnh từ **33.33% xuống còn 5.88%**, giúp thời gian GPU nhàn rỗi chờ đợi nhau giảm thiểu tối đa.
-- Bộ nhớ đỉnh (Peak VRAM) duy trì cực kỳ ổn định quanh mức **5.96 - 6.18 GB**, do kích thước của mỗi micro-batch nhỏ hơn giúp giảm lượng activation lưu trữ tạm thời tại một thời điểm trên card.
+### Tóm tắt nhanh
 
-### B. DeepSpeed Pipeline Parallelism
-*Cấu hình: EFFECTIVE_BS = 16, SEQ_LEN = 256*
+| Phương án | Cấu hình đại diện | Throughput (tok/s) | Sec/step | Peak VRAM (GB) | Final loss |
+| :-- | :-- | --: | --: | --: | --: |
+| 1 GPU + GC | batch 3, grad accum 2 | 171.4 | 8.968 | 9.436 | 0.3978 |
+| PyTorch PP tốt nhất | chunks 16 | 571.4 | 14.336 | 5.964 | 5.1786 |
+| DeepSpeed PP tốt nhất | chunks 16 | 304.4 | 13.458 | 12.309 | 2.6875 |
 
-| Số lượng Chunks (m) | Tỷ lệ Bubble (%) | Tốc độ huấn luyện (tokens/sec) | Thời gian một bước (sec/step) | Bộ nhớ đỉnh (Peak VRAM - GB) |
-| :---: | :---: | :---: | :---: | :---: |
-| **4** | 20.00% | 260.9 | 15.714s | 12.46 GB |
-| **8** | 11.11% | 284.6 | 14.393s | 12.36 GB |
-| **16** | 5.88% | 299.9 | 13.661s | 12.31 GB |
+### Kết quả 1 GPU + Gradient Checkpointing
 
-**Giải thích sự khác biệt giữa PyTorch Native và DeepSpeed**:
-1. **Dung lượng VRAM đỉnh (Peak VRAM)**: 
-   - Dù mức VRAM cấp phát tĩnh cho mô hình của DeepSpeed rất thấp (chỉ **1.55 GB** so với mức ~5 GB của PyTorch Native nhờ tối ưu hóa phân mảnh optimizer states của **ZeRO-1**), nhưng VRAM đỉnh thực tế đạt **~12.3 GB**.
-   - Điều này do DeepSpeed tự động cấp phát một vùng đệm bộ nhớ truyền thông NCCL tĩnh lớn (bao gồm các tham số kích thước như `reduce_bucket_size=5e8` và `allgather_bucket_size=5e8`) cùng với việc quản lý các tensor kích hoạt và gradient tập trung để tối ưu hóa hiệu năng truyền tải P2P liên GPU.
-2. **Tốc độ huấn luyện (tokens/sec)**:
-   - Tốc độ tokens/s của DeepSpeed thấp hơn PyTorch Native trong thực nghiệm (khoảng 260 - 299 tokens/s so với 431 - 571 tokens/s).
-   - **Nguyên nhân kỹ thuật**: Sự chênh lệch này hoàn toàn do cấu hình kích thước Batch Size hiệu dụng khác nhau giữa 2 chương trình. PyTorch Native sử dụng `BATCH_SIZE = 16` kết hợp `GRAD_ACCUM = 2` trên mỗi GPU, mang lại tổng Batch Size hiệu dụng là **32** (xử lý **8192 tokens/bước**). Trong khi đó, DeepSpeed được cấu hình với `EFFECTIVE_BS = 16` làm tổng kích thước batch chung cho cả hệ thống (tương đương **4096 tokens/bước**), dẫn đến kích thước micro-batch trên mỗi GPU bị đẩy xuống cực kỳ nhỏ (chỉ còn 4, 2, và 1 sample tương ứng với chunks 4, 8, 16).
-   - Kích thước micro-batch quá nhỏ (ví dụ: micro_batch = 1 ở cấu hình chunks = 16) khiến GPU không thể tối ưu hóa các phép toán song song trên lõi Tensor Cores, làm giảm hiệu suất tính toán thực tế của phần cứng và tăng tỷ lệ overhead truyền thông NCCL trên mỗi token.
+| Metric | Value |
+| :-- | --: |
+| Steps | 100 |
+| Throughput | 171.4 tok/s |
+| Avg sec/step | 8.968 |
+| Peak VRAM | 9.436 GB |
+| Final loss | 0.3978 |
+| Total time | 896.9 s |
 
----
+Nhận xét:
 
-## 6. Biểu đồ trực quan hóa kết quả thực nghiệm
+- Cấu hình này là mốc ít tốn phần cứng nhất vì chỉ dùng 1 GPU.
+- Peak VRAM vẫn nằm dưới 16GB nên có thể chạy ổn định.
+- Throughput thấp hơn rõ rệt so với pipeline 2 GPU.
 
-Để phục vụ báo cáo và phân tích kết quả trực quan, dự án đã tích hợp kịch bản vẽ biểu đồ tự động `plot_charts.py`. Toàn bộ 5 biểu đồ phân tích hiệu năng đã được vẽ thành công và lưu trữ tại thư mục cục bộ [charts/](file:///Users/atif/Downloads/Huấn luyện song song Log/charts):
+### Kết quả 2 GPU + PyTorch Native Pipeline
 
-1.  **Đường cong giảm Loss qua các bước (Loss Curves)**: Trực quan hóa tốc độ hội tụ ổn định của mô hình ứng với các cấu hình chunks [1_loss_curves.png](file:///Users/atif/Downloads/Huấn luyện song song Log/charts/1_loss_curves.png).
-2.  **Sự ổn định của Tốc độ Huấn luyện (Throughput Stability)**: Theo dõi tính ổn định của tốc độ xử lý tokens/s qua 100 bước [2_throughput_stability.png](file:///Users/atif/Downloads/Huấn luyện song song Log/charts/2_throughput_stability.png).
-3.  **Tác động của Chunks đến Tỷ lệ Bubble & Thời gian xử lý**: Chứng minh mối tương quan chặt chẽ giữa tỷ lệ bong bóng và thời gian trễ của bước huấn luyện [3_chunks_vs_bubble_latency.png](file:///Users/atif/Downloads/Huấn luyện song song Log/charts/3_chunks_vs_bubble_latency.png).
-4.  **So sánh tốc độ xử lý (Throughput Comparison)**: So sánh tokens/sec trực quan giữa Baseline 1GPU, PyTorch Native PP và DeepSpeed PP [4_throughput_comparison.png](file:///Users/atif/Downloads/Huấn luyện song song Log/charts/4_throughput_comparison.png).
-5.  **So sánh chiếm dụng bộ nhớ đỉnh (Peak VRAM Comparison)**: Đối chiếu lượng VRAM lớn nhất tiêu hao của các phương án so với giới hạn vật lý 16GB [5_vram_comparison.png](file:///Users/atif/Downloads/Huấn luyện song song Log/charts/5_vram_comparison.png).
+| Chunks | Bubble | Throughput (tok/s) | Sec/step | Peak VRAM (GB) | Final loss |
+| :--: | --: | --: | --: | --: | --: |
+| 2 | 33.33% | 324.8 | 25.224 | 6.182 | 5.1055 |
+| 4 | 20.00% | 431.0 | 19.010 | 5.985 | 5.1055 |
+| 8 | 11.11% | 517.7 | 15.825 | 5.973 | 5.0891 |
+| 16 | 5.88% | 571.4 | 14.336 | 5.964 | 5.1786 |
 
----
+Nhận xét:
 
-## 7. Hướng dẫn chạy thử nghiệm và Vẽ biểu đồ
+- Throughput tăng liên tục từ `324.8` lên `571.4 tok/s` khi tăng chunks từ `2` lên `16`.
+- Bubble ratio giảm từ `33.33%` xuống `5.88%`, đi cùng với việc `sec/step` giảm mạnh từ `25.224` xuống `14.336`.
+- Peak VRAM khá ổn định quanh `~6GB`, thấp hơn đáng kể so với giới hạn 16GB của T4.
 
-### Yêu cầu môi trường
-- Kaggle
-- Python >= 3.10
-- PyTorch >= 2.1 với hỗ trợ CUDA và NCCL
-- Các thư viện bổ trợ: `transformers`, `datasets`, `bitsandbytes`, `deepspeed`, `accelerate`, `matplotlib`, `numpy`
+### Kết quả 2 GPU + DeepSpeed Pipeline
+
+| Chunks | Bubble | Throughput (tok/s) | Sec/step | Peak VRAM (GB) | Final loss |
+| :--: | --: | --: | --: | --: | --: |
+| 4 | 20.00% | 269.4 | 15.212 | 12.464 | 2.7188 |
+| 8 | 11.11% | 289.7 | 14.139 | 12.361 | 2.6875 |
+| 16 | 5.88% | 304.4 | 13.458 | 12.309 | 2.6875 |
+
+Nhận xét:
+
+- DeepSpeed cũng hưởng lợi rõ từ việc tăng chunks: throughput tăng từ `269.4` lên `304.4 tok/s`.
+- `sec/step` giảm đều từ `15.212` xuống `13.458`.
+- Peak VRAM cao hơn cấu hình PyTorch PP trong repo hiện tại, dao động quanh `12.3GB`.
+
+### So sánh trực tiếp theo hướng ra quyết định
+
+| Tiêu chí | 1 GPU + GC | PyTorch PP | DeepSpeed PP |
+| :-- | :-- | :-- | :-- |
+| Mức dùng GPU | 1 GPU | 2 GPU | 2 GPU |
+| Throughput tốt nhất trong repo | 171.4 tok/s | 571.4 tok/s | 304.4 tok/s |
+| Peak VRAM tốt nhất trong repo | 9.436 GB | 5.964 GB | 12.309 GB |
+| Xu hướng khi tăng chunks | Không áp dụng | Tăng tốc rõ | Tăng tốc vừa |
+| Độ minh bạch khi debug | Cao | Cao | Trung bình |
+| Độ tự động hóa runtime | Thấp | Trung bình | Cao |
+
+Kết luận ngắn:
+
+- Nếu ưu tiên tốc độ trong repo này, `PyTorch PP (chunks 16)` là cấu hình tốt nhất.
+- Nếu ưu tiên ít GPU nhất, `1 GPU + GC` là mốc baseline hợp lý.
+- DeepSpeed vẫn hữu ích khi bạn cần runtime pipeline tiện hơn hoặc muốn tiếp tục khai thác hệ sinh thái ZeRO, nhưng ở bộ log hiện tại nó không thắng PyTorch PP về throughput hay peak VRAM.
+
+### Lưu ý khi đọc throughput
+
+Không nên diễn giải throughput giữa PyTorch PP và DeepSpeed PP như một cuộc so găng tuyệt đối 1:1, vì batch hiệu dụng khác nhau:
+
+- PyTorch PP trong repo này dùng `BATCH_SIZE = 16`, `GRAD_ACCUM = 2`, tức effective batch size `32`
+- DeepSpeed PP dùng `EFFECTIVE_BS = 16`
+
+Vì vậy, nên dùng bảng này để so sánh xu hướng scaling theo `chunks` và memory behavior trước, rồi mới tinh chỉnh batch để benchmark công bằng hơn.
+
+## 6. Biểu đồ
+
+Các biểu đồ dưới đây được tạo từ [plot_charts.py](plot_charts.py) và thư mục `log/`.
+
+### 1. Loss curves của PyTorch pipeline
+
+![Loss Curves PyTorch PP](charts/1_loss_curves.png)
+
+### 2. Throughput stability của PyTorch pipeline
+
+![Throughput Stability](charts/2_throughput_stability.png)
+
+### 3. Tương quan giữa chunks, bubble và độ trễ
+
+![Chunks vs Bubble Latency](charts/3_chunks_vs_bubble_latency.png)
+
+### 4. So sánh throughput giữa các giải pháp
+
+![Throughput Comparison](charts/4_throughput_comparison.png)
+
+### 5. So sánh peak VRAM giữa các giải pháp
+
+![VRAM Comparison](charts/5_vram_comparison.png)
+
+## 7. Cách chạy lại
+
+### Cài dependencies
+
 ```bash
-pip install -q datasets bitsandbytes deepspeed accelerate matplotlib numpy
+pip install -q datasets bitsandbytes deepspeed accelerate matplotlib numpy transformers
 ```
 
-### Cách chạy thực nghiệm
+### Chạy từng bước
 
-1.  **Chạy Baseline thành công trên 1 GPU (Có Gradient Checkpointing)**:
-    ```bash
-    python onegpu_GC.py
-    ```
+```bash
+python src/baseline_1gpu.py
+python src/gradient_checkpointing_1gpu.py
+python src/pytorch_2gpu.py
+python src/deepspeed_2gpu.py
+```
 
-2.  **Chạy PyTorch Native Pipeline (2 GPU)**:
-    ```bash
-    python ddp_v2.py
-    ```
+### Vẽ lại toàn bộ biểu đồ
 
-3.  **Chạy DeepSpeed Pipeline (2 GPU)**:
-    ```bash
-    python dp.py
-    ```
-    
-4.  **Tự động cập nhật và vẽ lại toàn bộ 5 biểu đồ**:
-    ```bash
-    python3 plot_charts.py
-    ```
+```bash
+python3 plot_charts.py
+```
+
+## 8. Cấu trúc output đáng chú ý
+
+- `log/step2_metrics.json`: metrics của baseline 1 GPU + GC
+- `log/pytorch_metrics.json`: metrics PyTorch PP theo từng cấu hình chunks
+- `log/step3_deepspeed_metrics.json`: metrics DeepSpeed PP theo từng cấu hình chunks
+- `charts/`: ảnh biểu đồ dùng cho README
+
+## 9. Gợi ý mở rộng
+
+- Chuẩn hóa effective batch size giữa PyTorch PP và DeepSpeed PP để benchmark công bằng hơn.
+- Thêm cấu hình `chunks > 16` để xem ngưỡng diminishing returns.
+- Đo thêm GPU utilization và NCCL communication overhead để giải thích sâu hơn chênh lệch giữa hai pipeline runtime.

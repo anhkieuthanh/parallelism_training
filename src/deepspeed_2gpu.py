@@ -15,17 +15,14 @@ deepspeed.utils.nvtx._range_push = lambda *args, **kwargs: None
 deepspeed.utils.nvtx._range_pop  = lambda *args, **kwargs: None
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
-# ── Config ─────────────────────────────────────────────────────
 MODEL_NAME  = "gpt2-xl"
 SEQ_LEN     = 256
-EFFECTIVE_BS = 16  # Tương đương BATCH_SIZE(16) * GRAD_ACCUM(2) ở bản cũ
+EFFECTIVE_BS = 16
 MAX_STEPS   = 100
 DTYPE       = torch.bfloat16
 LOG_FILE    = "step3_deepspeed_metrics.json"
-CHUNKS_LIST = [ 4, 8, 16]   # DeepSpeed gọi đây là gradient_accumulation_steps
+CHUNKS_LIST = [4, 8, 16]   # DeepSpeed gọi đây là gradient_accumulation_steps
 SPLIT_LAYER = 24              
-
-# ── Stage modules ──────────────────────────────────────────────
 
 class Stage0(nn.Module):
     """Embedding + transformer blocks 0..SPLIT_LAYER-1"""
@@ -51,7 +48,6 @@ class Stage0(nn.Module):
         for block in self.blocks:
             hidden = checkpoint(block, hidden, use_reentrant=False, attention_mask=extended_attn_mask)[0]
             
-        # ✅ SỬA Ở ĐÂY: Trả về trực tiếp mask dạng bool, không ép kiểu sang bfloat16 nữa
         return (hidden, extended_attn_mask)
 
 class Stage1(nn.Module):
@@ -64,21 +60,14 @@ class Stage1(nn.Module):
         self.lm_head = model.lm_head
 
     def forward(self, inputs):
-        # ✅ SỬA Ở ĐÂY: Nhận trực tiếp mask dạng bool từ Stage 0
         hidden, extended_attn_mask = inputs
         
-        # (Đã xóa dòng dummy gradient và ép kiểu ngược)
-        
         for block in self.blocks:
-            # Truyền thẳng mask vào block
             hidden = checkpoint(block, hidden, use_reentrant=False, attention_mask=extended_attn_mask)[0]
             
         hidden = self.ln_f(hidden)
         logits = self.lm_head(hidden) 
         return logits
-
-
-# ── Loss function ──────────────────────────────────────────────
 
 def compute_loss(logits, labels):
     shift_logits = logits[..., :-1, :].contiguous()
@@ -87,8 +76,6 @@ def compute_loss(logits, labels):
         shift_logits.view(-1, shift_logits.size(-1)),
         shift_labels.view(-1)
     )
-
-# ── Dataloader Wrapper cho DeepSpeed ───────────────────────────
 
 class DeepSpeedPipelineIterator:
     """DeepSpeed Pipeline yêu cầu Iterator trả về đúng chuẩn ((inputs), labels)"""
@@ -110,10 +97,7 @@ class DeepSpeedPipelineIterator:
         attention_mask = batch["attention_mask"]
         labels = input_ids.clone()
         
-        # Return format: ( (inputs_for_stage0), labels_for_loss )
         return ((input_ids, attention_mask), labels)
-
-# ── Helpers ────────────────────────────────────────────────────
 
 def get_memory_stats(device):
     return {
@@ -144,11 +128,7 @@ def get_dataloader(tokenizer, rank, world_size, micro_batch_size):
     sampler = DistributedSampler(tokenized, num_replicas=world_size, rank=rank, shuffle=True)
     return DataLoader(tokenized, batch_size=micro_batch_size, sampler=sampler, drop_last=True)
 
-
-# ── Training worker ────────────────────────────────────────────
-
 def train_worker(rank, world_size, chunks, result_queue):
-    # Setup biến môi trường cho DeepSpeed trong mp.spawn
     os.environ["LOCAL_RANK"] = str(rank)
     os.environ["RANK"] = str(rank)
     os.environ["WORLD_SIZE"] = str(world_size)
@@ -166,7 +146,6 @@ def train_worker(rank, world_size, chunks, result_queue):
     full_model = GPT2LMHeadModel.from_pretrained(MODEL_NAME, torch_dtype=DTYPE)
     full_model.eval()
 
-    # DeepSpeed PipelineModule nhận một list các module (sẽ tự động cắt đôi cho 2 GPU)
     layers = [
         Stage0(full_model),
         Stage1(full_model)
@@ -177,16 +156,15 @@ def train_worker(rank, world_size, chunks, result_queue):
         num_stages=world_size,
         loss_fn=compute_loss,
         partition_method="parameters",
-        activation_checkpoint_interval=0  # Tắt checkpoint mặc định vì mình đã checkpoint thủ công
+        activation_checkpoint_interval=0 
     )
 
     del full_model
     torch.cuda.empty_cache()
 
     mem = get_memory_stats(rank)
-    print(f"[GPU{rank}] Stage assigned — allocated={mem['allocated_gb']:.2f}GB")
+    print(f"[GPU{rank}] loaded — {mem['allocated_gb']:.2f}GB")
 
-    # Cấu hình tính toán Micro-batch
     micro_batch_size = EFFECTIVE_BS // chunks
 
     ds_config = {
@@ -195,17 +173,15 @@ def train_worker(rank, world_size, chunks, result_queue):
         "gradient_accumulation_steps": chunks,
         "bf16": {"enabled": True},
         "zero_allow_untested_optimizer": True,
-        # 🚀 BẬT TÍNH NĂNG ZERO TẠI ĐÂY
         "zero_optimization": {
-            "stage": 1,                   # Chỉ dùng Stage 1 khi kết hợp với Pipeline
-            "reduce_bucket_size": 5e8,    # Tối ưu kích thước gói tin gửi qua NCCL
+            "stage": 1,                   
+            "reduce_bucket_size": 5e8,    
             "allgather_bucket_size": 5e8
         }
     }
 
     optimizer = bnb.optim.AdamW8bit(model.parameters(), lr=5e-5)
 
-    # Khởi tạo DeepSpeed Engine
     engine, optimizer, _, _ = deepspeed.initialize(
         model=model,
         optimizer=optimizer,
@@ -222,7 +198,6 @@ def train_worker(rank, world_size, chunks, result_queue):
         for step in range(1, MAX_STEPS + 1):
             step_start = time.time()
             
-            # CHỈ 1 DÒNG DUY NHẤT: train_batch tự handle mọi thứ!
             loss = engine.train_batch(data_iter=data_iter)
 
             if rank == world_size - 1:
@@ -244,14 +219,13 @@ def train_worker(rank, world_size, chunks, result_queue):
 
                 if step % 10 == 0:
                     print(f"  step={step:4d}  loss={step_metrics['loss']:.4f}  "
-                          f"tok/s={tokens_sec:7.1f}  "
+                          f"tok/s={tokens_sec:8.1f}  "
                           f"sec/step={step_time:.3f}s  "
                           f"bubble={bubble:.2%}")
 
     except torch.cuda.OutOfMemoryError as e:
         print(f"\n[GPU{rank}] 💥 OOM: {e}")
 
-    # Summary
     if rank == world_size - 1 and all_metrics:
         total_time = time.time() - start_time
         avg_tokens_sec = sum(m["tokens_per_sec"] for m in all_metrics) / len(all_metrics)
@@ -262,6 +236,10 @@ def train_worker(rank, world_size, chunks, result_queue):
             "method"          : "2GPU_deepspeed_pipeline",
             "chunks"          : chunks,
             "bubble_ratio"    : bubble_ratio,
+            "config"          : {"dtype": "bfloat16", "seq_len": SEQ_LEN,
+                                 "batch_size": EFFECTIVE_BS, 
+                                 "effective_bs": EFFECTIVE_BS,
+                                 "split_layer": SPLIT_LAYER},
             "steps"           : step,
             "avg_tokens_sec"  : round(avg_tokens_sec, 1),
             "avg_sec_per_step": round(avg_sec_step, 3),
@@ -270,11 +248,12 @@ def train_worker(rank, world_size, chunks, result_queue):
             "total_time_sec"  : round(total_time, 1),
         }
         result_queue.put(summary)
+        print(f"\n{'='*60}")
+        print(f"📊 chunks={chunks} | tok/s={avg_tokens_sec:.1f} | "
+              f"bubble={bubble_ratio:.2%} | peak_vram={summary['peak_vram_gb']:.2f}GB")
+        print(f"{'='*60}")
 
     dist.destroy_process_group()
-
-
-# ── Main ───────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     os.environ["MASTER_ADDR"] = "localhost"
@@ -304,10 +283,10 @@ if __name__ == "__main__":
     with open(LOG_FILE, "w") as f:
         json.dump(all_results, f, indent=2)
 
-    print(f"\n{'='*60}")
-    print(f"✅ Saved to {LOG_FILE}")
-    print(f"\n{'chunks':>8} | {'tok/s':>10} | {'bubble':>8} | {'sec/step':>10}")
-    print("-" * 46)
+    print(f"\n{'='*60}\n✅ Saved to {LOG_FILE}")
+    print(f"\n{'chunks':>8} | {'tok/s':>12} | {'bubble':>8} | {'sec/step':>10} | {'loss':>8}")
+    print("-" * 58)
     for r in all_results:
-        print(f"{r['chunks']:>8} | {r['avg_tokens_sec']:>10.1f} | "
-              f"{r['bubble_ratio']:>8.2%} | {r['avg_sec_per_step']:>10.3f}s")
+        print(f"{r['chunks']:>8} | {r['avg_tokens_sec']:>12.1f} | "
+              f"{r['bubble_ratio']:>8.2%} | {r['avg_sec_per_step']:>10.3f}s | "
+              f"{r['final_loss']:>8.4f}")

@@ -7,17 +7,15 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 import bitsandbytes as bnb
 
-# ── Config ────────────────────────────────────────────────────
 MODEL_NAME  = "gpt2-xl"
 SEQ_LEN     = 256
 BATCH_SIZE  = 3
-GRAD_ACCUM  = 2       # effective batch size = BATCH_SIZE * GRAD_ACCUM = 2
+GRAD_ACCUM  = 2
 MAX_STEPS   = 100
 DEVICE      = "cuda" if torch.cuda.is_available() else "cpu"
 DTYPE       = torch.bfloat16
 LOG_FILE    = "step2_metrics.json"
 
-# ── Helper ─────────────────────────────────────────────────────
 def get_memory_stats():
     return {
         "allocated_gb": round(torch.cuda.memory_allocated()    / 1024**3, 3),
@@ -32,7 +30,6 @@ def log_memory(tag=""):
           f"reserved={s['reserved_gb']:.2f}GB  "
           f"peak={s['peak_gb']:.2f}GB")
 
-# ── 1. Load tokenizer & dataset ────────────────────────────────
 print("=" * 60)
 print("Bước 2 – Baseline: GPT-2 XL | 1 GPU | bf16 | Gradient Checkpointing")
 print("=" * 60)
@@ -60,28 +57,24 @@ print(f"  Dataset size    : {len(tokenized)} samples")
 print(f"  Batch size      : {BATCH_SIZE}  (grad_accum={GRAD_ACCUM} → effective bs={BATCH_SIZE*GRAD_ACCUM})")
 print(f"  Seq length      : {SEQ_LEN}")
 
-# ── 2. Load model in bf16 ──────────────────────────────────────
 print(f"\n[2/5] Loading {MODEL_NAME} in bf16 ...")
 torch.cuda.reset_peak_memory_stats()
 model = GPT2LMHeadModel.from_pretrained(MODEL_NAME, torch_dtype=DTYPE)
 model.to(DEVICE)
 log_memory("after model load")
 
-# ── 3. Enable Gradient Checkpointing ──────────────────────────
 print("\n[3/5] Enabling Gradient Checkpointing ...")
 model.gradient_checkpointing_enable()
 print("  ✅ gradient_checkpointing = True")
 print("  ℹ️  Recompute activations on backward → giảm VRAM, tăng compute ~20-30%")
 log_memory("after GC enable")
 
-# ── 4. Setup optimizer (no GradScaler needed for bf16) ─────────
 print("\n[4/5] Setting up AdamW 8-bit optimizer ...")
 print("  ℹ️  bf16 không cần GradScaler — dynamic range đủ rộng")
 print("  ℹ️  AdamW8bit: optimizer states ở INT8 → giảm ~4x VRAM so FP32 AdamW")
 optimizer = bnb.optim.AdamW8bit(model.parameters(), lr=5e-5)
 log_memory("after optimizer init")
 
-# ── 5. Training loop ───────────────────────────────────────────
 print(f"\n[5/5] Training for {MAX_STEPS} optimizer steps ...")
 print("-" * 60)
 
@@ -99,7 +92,6 @@ try:
         attention_mask = batch["attention_mask"].to(DEVICE)
         labels         = input_ids.clone()
 
-        # bf16 forward — no autocast needed, model already in bf16
         outputs = model(
             input_ids=input_ids,
             attention_mask=attention_mask,
@@ -146,7 +138,6 @@ except torch.cuda.OutOfMemoryError as e:
     print(f"   Error: {e}")
     log_memory("OOM point")
 
-# ── Summary ────────────────────────────────────────────────────
 total_time = time.time() - start_time
 
 if all_metrics:

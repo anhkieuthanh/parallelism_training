@@ -1,0 +1,718 @@
+{
+  "method": "1GPU_GC_bf16_adamw8bit",
+  "config": {
+    "dtype": "bfloat16",
+    "seq_len": 256,
+    "batch_size": 3,
+    "grad_accum": 2,
+    "effective_bs": 6
+  },
+  "steps": 100,
+  "avg_tokens_sec": 171.4,
+  "avg_sec_per_step": 8.968,
+  "peak_vram_gb": 9.436,
+  "final_loss": 0.3978,
+  "total_time_sec": 896.9,
+  "per_step_metrics": [
+    {
+      "step": 1,
+      "loss": 20.1002,
+      "sec_per_step": 8.321,
+      "tokens_per_sec": 184.6,
+      "peak_vram_gb": 8.889
+    },
+    {
+      "step": 2,
+      "loss": 14.8945,
+      "sec_per_step": 8.01,
+      "tokens_per_sec": 191.8,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 3,
+      "loss": 12.3872,
+      "sec_per_step": 8.139,
+      "tokens_per_sec": 188.7,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 4,
+      "loss": 12.3478,
+      "sec_per_step": 8.144,
+      "tokens_per_sec": 188.6,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 5,
+      "loss": 5.8545,
+      "sec_per_step": 8.273,
+      "tokens_per_sec": 185.7,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 6,
+      "loss": 3.9537,
+      "sec_per_step": 8.35,
+      "tokens_per_sec": 183.9,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 7,
+      "loss": 3.318,
+      "sec_per_step": 8.353,
+      "tokens_per_sec": 183.9,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 8,
+      "loss": 4.6571,
+      "sec_per_step": 8.458,
+      "tokens_per_sec": 181.6,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 9,
+      "loss": 1.1408,
+      "sec_per_step": 8.385,
+      "tokens_per_sec": 183.2,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 10,
+      "loss": 2.1293,
+      "sec_per_step": 8.481,
+      "tokens_per_sec": 181.1,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 11,
+      "loss": 2.315,
+      "sec_per_step": 8.57,
+      "tokens_per_sec": 179.2,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 12,
+      "loss": 2.3197,
+      "sec_per_step": 8.632,
+      "tokens_per_sec": 177.9,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 13,
+      "loss": 1.3258,
+      "sec_per_step": 8.648,
+      "tokens_per_sec": 177.6,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 14,
+      "loss": 1.5685,
+      "sec_per_step": 8.678,
+      "tokens_per_sec": 177.0,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 15,
+      "loss": 0.9253,
+      "sec_per_step": 8.666,
+      "tokens_per_sec": 177.3,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 16,
+      "loss": 2.9817,
+      "sec_per_step": 8.748,
+      "tokens_per_sec": 175.6,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 17,
+      "loss": 2.0641,
+      "sec_per_step": 8.729,
+      "tokens_per_sec": 176.0,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 18,
+      "loss": 2.0344,
+      "sec_per_step": 8.79,
+      "tokens_per_sec": 174.7,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 19,
+      "loss": 2.5469,
+      "sec_per_step": 8.786,
+      "tokens_per_sec": 174.8,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 20,
+      "loss": 1.7576,
+      "sec_per_step": 8.777,
+      "tokens_per_sec": 175.0,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 21,
+      "loss": 1.3917,
+      "sec_per_step": 8.824,
+      "tokens_per_sec": 174.1,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 22,
+      "loss": 1.4938,
+      "sec_per_step": 8.885,
+      "tokens_per_sec": 172.9,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 23,
+      "loss": 1.3024,
+      "sec_per_step": 8.858,
+      "tokens_per_sec": 173.4,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 24,
+      "loss": 1.1385,
+      "sec_per_step": 8.822,
+      "tokens_per_sec": 174.1,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 25,
+      "loss": 0.5459,
+      "sec_per_step": 8.893,
+      "tokens_per_sec": 172.7,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 26,
+      "loss": 1.2131,
+      "sec_per_step": 8.95,
+      "tokens_per_sec": 171.6,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 27,
+      "loss": 1.0915,
+      "sec_per_step": 8.889,
+      "tokens_per_sec": 172.8,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 28,
+      "loss": 0.9462,
+      "sec_per_step": 8.987,
+      "tokens_per_sec": 170.9,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 29,
+      "loss": 1.2611,
+      "sec_per_step": 8.975,
+      "tokens_per_sec": 171.1,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 30,
+      "loss": 2.0264,
+      "sec_per_step": 9.015,
+      "tokens_per_sec": 170.4,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 31,
+      "loss": 2.426,
+      "sec_per_step": 9.098,
+      "tokens_per_sec": 168.8,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 32,
+      "loss": 2.9687,
+      "sec_per_step": 9.129,
+      "tokens_per_sec": 168.2,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 33,
+      "loss": 1.5789,
+      "sec_per_step": 9.097,
+      "tokens_per_sec": 168.9,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 34,
+      "loss": 0.9463,
+      "sec_per_step": 9.036,
+      "tokens_per_sec": 170.0,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 35,
+      "loss": 3.0509,
+      "sec_per_step": 9.133,
+      "tokens_per_sec": 168.2,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 36,
+      "loss": 2.3439,
+      "sec_per_step": 9.122,
+      "tokens_per_sec": 168.4,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 37,
+      "loss": 0.8154,
+      "sec_per_step": 9.045,
+      "tokens_per_sec": 169.8,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 38,
+      "loss": 0.9649,
+      "sec_per_step": 9.03,
+      "tokens_per_sec": 170.1,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 39,
+      "loss": 3.0023,
+      "sec_per_step": 9.161,
+      "tokens_per_sec": 167.7,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 40,
+      "loss": 0.4104,
+      "sec_per_step": 8.973,
+      "tokens_per_sec": 171.2,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 41,
+      "loss": 1.0877,
+      "sec_per_step": 9.085,
+      "tokens_per_sec": 169.1,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 42,
+      "loss": 1.0437,
+      "sec_per_step": 9.077,
+      "tokens_per_sec": 169.2,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 43,
+      "loss": 1.5158,
+      "sec_per_step": 9.075,
+      "tokens_per_sec": 169.2,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 44,
+      "loss": 1.6607,
+      "sec_per_step": 9.088,
+      "tokens_per_sec": 169.0,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 45,
+      "loss": 1.0306,
+      "sec_per_step": 9.006,
+      "tokens_per_sec": 170.6,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 46,
+      "loss": 1.5637,
+      "sec_per_step": 9.104,
+      "tokens_per_sec": 168.7,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 47,
+      "loss": 1.5654,
+      "sec_per_step": 9.102,
+      "tokens_per_sec": 168.8,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 48,
+      "loss": 1.52,
+      "sec_per_step": 9.086,
+      "tokens_per_sec": 169.1,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 49,
+      "loss": 3.4465,
+      "sec_per_step": 9.157,
+      "tokens_per_sec": 167.7,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 50,
+      "loss": 2.3925,
+      "sec_per_step": 9.172,
+      "tokens_per_sec": 167.5,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 51,
+      "loss": 1.9249,
+      "sec_per_step": 9.135,
+      "tokens_per_sec": 168.1,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 52,
+      "loss": 1.1832,
+      "sec_per_step": 9.067,
+      "tokens_per_sec": 169.4,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 53,
+      "loss": 2.257,
+      "sec_per_step": 9.141,
+      "tokens_per_sec": 168.0,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 54,
+      "loss": 1.126,
+      "sec_per_step": 9.082,
+      "tokens_per_sec": 169.1,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 55,
+      "loss": 1.1581,
+      "sec_per_step": 9.117,
+      "tokens_per_sec": 168.5,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 56,
+      "loss": 2.1349,
+      "sec_per_step": 9.124,
+      "tokens_per_sec": 168.4,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 57,
+      "loss": 1.7999,
+      "sec_per_step": 9.151,
+      "tokens_per_sec": 167.8,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 58,
+      "loss": 1.8773,
+      "sec_per_step": 9.155,
+      "tokens_per_sec": 167.8,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 59,
+      "loss": 0.1117,
+      "sec_per_step": 9.068,
+      "tokens_per_sec": 169.4,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 60,
+      "loss": 0.7656,
+      "sec_per_step": 9.13,
+      "tokens_per_sec": 168.2,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 61,
+      "loss": 0.4986,
+      "sec_per_step": 9.099,
+      "tokens_per_sec": 168.8,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 62,
+      "loss": 2.214,
+      "sec_per_step": 9.164,
+      "tokens_per_sec": 167.6,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 63,
+      "loss": 2.1437,
+      "sec_per_step": 9.162,
+      "tokens_per_sec": 167.7,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 64,
+      "loss": 0.9506,
+      "sec_per_step": 9.044,
+      "tokens_per_sec": 169.8,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 65,
+      "loss": 1.0846,
+      "sec_per_step": 9.166,
+      "tokens_per_sec": 167.6,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 66,
+      "loss": 0.9888,
+      "sec_per_step": 9.102,
+      "tokens_per_sec": 168.8,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 67,
+      "loss": 3.4712,
+      "sec_per_step": 9.212,
+      "tokens_per_sec": 166.7,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 68,
+      "loss": 2.7555,
+      "sec_per_step": 9.173,
+      "tokens_per_sec": 167.5,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 69,
+      "loss": 0.5182,
+      "sec_per_step": 9.065,
+      "tokens_per_sec": 169.4,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 70,
+      "loss": 2.5605,
+      "sec_per_step": 9.137,
+      "tokens_per_sec": 168.1,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 71,
+      "loss": 1.7528,
+      "sec_per_step": 9.113,
+      "tokens_per_sec": 168.6,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 72,
+      "loss": 1.6059,
+      "sec_per_step": 9.161,
+      "tokens_per_sec": 167.7,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 73,
+      "loss": 1.2514,
+      "sec_per_step": 9.142,
+      "tokens_per_sec": 168.0,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 74,
+      "loss": 1.0505,
+      "sec_per_step": 9.027,
+      "tokens_per_sec": 170.2,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 75,
+      "loss": 3.1544,
+      "sec_per_step": 9.183,
+      "tokens_per_sec": 167.3,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 76,
+      "loss": 1.0792,
+      "sec_per_step": 9.104,
+      "tokens_per_sec": 168.7,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 77,
+      "loss": 0.5719,
+      "sec_per_step": 9.09,
+      "tokens_per_sec": 169.0,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 78,
+      "loss": 1.7106,
+      "sec_per_step": 9.12,
+      "tokens_per_sec": 168.4,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 79,
+      "loss": 1.335,
+      "sec_per_step": 9.143,
+      "tokens_per_sec": 168.0,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 80,
+      "loss": 1.1753,
+      "sec_per_step": 9.062,
+      "tokens_per_sec": 169.5,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 81,
+      "loss": 0.3919,
+      "sec_per_step": 9.036,
+      "tokens_per_sec": 170.0,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 82,
+      "loss": 2.5527,
+      "sec_per_step": 9.196,
+      "tokens_per_sec": 167.0,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 83,
+      "loss": 0.0451,
+      "sec_per_step": 8.997,
+      "tokens_per_sec": 170.7,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 84,
+      "loss": 2.4304,
+      "sec_per_step": 9.128,
+      "tokens_per_sec": 168.3,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 85,
+      "loss": 1.3157,
+      "sec_per_step": 9.112,
+      "tokens_per_sec": 168.6,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 86,
+      "loss": 1.1542,
+      "sec_per_step": 9.075,
+      "tokens_per_sec": 169.3,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 87,
+      "loss": 3.5842,
+      "sec_per_step": 9.185,
+      "tokens_per_sec": 167.2,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 88,
+      "loss": 0.378,
+      "sec_per_step": 9.035,
+      "tokens_per_sec": 170.0,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 89,
+      "loss": 1.4228,
+      "sec_per_step": 9.067,
+      "tokens_per_sec": 169.4,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 90,
+      "loss": 1.5706,
+      "sec_per_step": 9.106,
+      "tokens_per_sec": 168.7,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 91,
+      "loss": 1.0788,
+      "sec_per_step": 9.106,
+      "tokens_per_sec": 168.7,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 92,
+      "loss": 2.1383,
+      "sec_per_step": 9.187,
+      "tokens_per_sec": 167.2,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 93,
+      "loss": 1.0597,
+      "sec_per_step": 9.151,
+      "tokens_per_sec": 167.9,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 94,
+      "loss": 1.8299,
+      "sec_per_step": 9.119,
+      "tokens_per_sec": 168.4,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 95,
+      "loss": 1.3955,
+      "sec_per_step": 9.144,
+      "tokens_per_sec": 168.0,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 96,
+      "loss": 1.281,
+      "sec_per_step": 9.153,
+      "tokens_per_sec": 167.8,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 97,
+      "loss": 1.5165,
+      "sec_per_step": 9.166,
+      "tokens_per_sec": 167.6,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 98,
+      "loss": 2.8288,
+      "sec_per_step": 9.219,
+      "tokens_per_sec": 166.6,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 99,
+      "loss": 1.6007,
+      "sec_per_step": 9.108,
+      "tokens_per_sec": 168.6,
+      "peak_vram_gb": 9.436
+    },
+    {
+      "step": 100,
+      "loss": 0.3978,
+      "sec_per_step": 9.038,
+      "tokens_per_sec": 169.9,
+      "peak_vram_gb": 9.436
+    }
+  ]
+}

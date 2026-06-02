@@ -19,7 +19,6 @@ from torch.utils.data import DataLoader, DistributedSampler
 import bitsandbytes as bnb
 from torch.utils.checkpoint import checkpoint
 
-# ── Config ─────────────────────────────────────────────────────
 MODEL_NAME  = "gpt2-xl"
 SEQ_LEN     = 256
 BATCH_SIZE  = 16
@@ -30,7 +29,6 @@ LOG_FILE    = "step3_metrics.json"
 CHUNKS_LIST = [2, 4, 8, 16]
 SPLIT_LAYER = 24
 
-# ── Stage 0 ────────────────────────────────────────────────────
 class Stage0(nn.Module):
     def __init__(self, model):
         super().__init__()
@@ -55,7 +53,6 @@ class Stage0(nn.Module):
         # Trả về hidden + mask để Stage1 dùng (mask cần để backprop qua cả 2 stage)
         return hidden, mask.to(dtype=hidden.dtype)
 
-# ── Stage 1 ────────────────────────────────────────────────────
 class Stage1(nn.Module):
     def __init__(self, model):
         super().__init__()
@@ -73,7 +70,6 @@ class Stage1(nn.Module):
                                 attention_mask=bool_mask)[0]
         return self.lm_head(self.ln_f(hidden))
 
-# ── Loss ───────────────────────────────────────────────────────
 def compute_loss(logits, labels):
     shift_logits = logits[..., :-1, :].contiguous()
     shift_labels = labels[..., 1:].contiguous()
@@ -82,7 +78,6 @@ def compute_loss(logits, labels):
         shift_labels.view(-1),
     )
 
-# ── Helpers ────────────────────────────────────────────────────
 def get_memory_stats(device):
     return {
         "allocated_gb": round(torch.cuda.memory_allocated(device)    / 1024**3, 3),
@@ -117,7 +112,6 @@ def get_dataloader(tokenizer, rank, world_size):
     sampler = DistributedSampler(tokenized, num_replicas=world_size, rank=rank, shuffle=True)
     return DataLoader(tokenized, batch_size=BATCH_SIZE, sampler=sampler, drop_last=True)
 
-# ── Worker ─────────────────────────────────────────────────────
 def train_worker(rank, world_size, chunks, result_queue):
     dist.init_process_group(backend="nccl", init_method="env://",
                             world_size=world_size, rank=rank)
@@ -160,7 +154,7 @@ def train_worker(rank, world_size, chunks, result_queue):
     stage_mod.train()
 
     optimizer_step = 0
-    accum_step     = 0        # đếm số lần schedule.step() để gộp GRAD_ACCUM
+    accum_step     = 0
     all_metrics    = []
     total_start    = time.time()
     accum_loss     = 0.0
@@ -171,14 +165,11 @@ def train_worker(rank, world_size, chunks, result_queue):
             attention_mask = batch["attention_mask"].to(device)
             labels         = input_ids.clone()
 
-            # ── Đo thời gian bắt đầu từ ĐÂY ──────────────────
             step_start = time.time()
 
             if rank == 0:
-                # Stage0: feed input, nhận gradient từ Stage1
                 schedule.step(input_ids, attention_mask)
             else:
-                # Stage1: tính loss, backward tự động bởi schedule
                 losses = []
                 schedule.step(target=labels, losses=losses)
                 if losses:
@@ -186,17 +177,15 @@ def train_worker(rank, world_size, chunks, result_queue):
 
             accum_step += 1
 
-            # Optimizer step sau GRAD_ACCUM lần schedule.step()
             if accum_step % GRAD_ACCUM == 0:
                 optimizer.step()
                 optimizer.zero_grad()
-                dist.barrier()   # sync 2 GPU trước khi đo thời gian
+                dist.barrier()
 
                 step_time = time.time() - step_start
                 optimizer_step += 1
 
                 if rank == world_size - 1:
-                    # tokens = BATCH_SIZE * GRAD_ACCUM * SEQ_LEN (pipeline ≠ data parallel)
                     tokens_sec = (BATCH_SIZE * GRAD_ACCUM * SEQ_LEN) / step_time
                     mem        = get_memory_stats(rank)
                     p          = world_size
@@ -257,7 +246,6 @@ def train_worker(rank, world_size, chunks, result_queue):
 
     dist.destroy_process_group()
 
-# ── Main ───────────────────────────────────────────────────────
 if __name__ == "__main__":
     os.environ["MASTER_ADDR"] = "localhost"
     os.environ["MASTER_PORT"] = "12355"

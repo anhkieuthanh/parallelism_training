@@ -6,7 +6,6 @@ from datasets import load_dataset
 from torch.utils.data import DataLoader
 import bitsandbytes as bnb
 
-# ── Config (đồng bộ với Bước 2) ───────────────────────────────
 MODEL_NAME  = "gpt2-xl"
 SEQ_LEN     = 256
 BATCH_SIZE  = 3
@@ -15,7 +14,6 @@ MAX_STEPS   = 100
 DEVICE      = "cuda" if torch.cuda.is_available() else "cpu"
 DTYPE       = torch.bfloat16
 
-# ── Helper ─────────────────────────────────────────────────────
 def log_memory(tag=""):
     alloc  = torch.cuda.memory_allocated()    / 1024**3
     resv   = torch.cuda.memory_reserved()     / 1024**3
@@ -23,7 +21,6 @@ def log_memory(tag=""):
     print(f"[MEM]{' '+tag+' ' if tag else ' '}"
           f"allocated={alloc:.2f}GB  reserved={resv:.2f}GB  peak={peak:.2f}GB")
 
-# ── 1. Load tokenizer & dataset ────────────────────────────────
 print("=" * 60)
 print("Bước 1 – OOM Demo: GPT-2 XL | 1 GPU | bf16 | NO Gradient Checkpointing")
 print("=" * 60)
@@ -47,20 +44,17 @@ tokenized.set_format(type="torch", columns=["input_ids", "attention_mask"])
 tokenized = tokenized.filter(lambda x: x["input_ids"].sum() > 0)
 dataloader = DataLoader(tokenized, batch_size=BATCH_SIZE, shuffle=True)
 
-# ── 2. Load model in bf16 ──────────────────────────────────────
 print(f"\n[2/4] Loading {MODEL_NAME} in bf16 ...")
 torch.cuda.reset_peak_memory_stats()
 model = GPT2LMHeadModel.from_pretrained(MODEL_NAME, torch_dtype=DTYPE)
 model.to(DEVICE)
 log_memory("after model load")
 
-# ── 3. Setup optimizer ─────────────────────────────────────────
 print("\n[3/4] Setting up AdamW 8-bit optimizer ...")
 print("  ⚠️  Gradient Checkpointing: DISABLED")
 optimizer = bnb.optim.AdamW8bit(model.parameters(), lr=5e-5)
 log_memory("after optimizer init")
 
-# ── 4. Training loop ───────────────────────────────────────────
 print(f"\n[4/4] Starting training — expecting OOM ...")
 print("-" * 60)
 
