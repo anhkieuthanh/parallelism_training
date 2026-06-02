@@ -115,7 +115,7 @@ Khi áp dụng vào hệ thống **2 GPU ($p = 2$)**, ta có các tỷ lệ lý 
 
 Dưới đây là bảng số liệu thu thập được từ thực nghiệm trên hệ thống 2 GPU T4 (16GB VRAM) được lưu trữ tại thư mục `log/`:
 
-### A. PyTorch Native Pipeline (Trích xuất từ `log/pytorch_metrics.json`)
+### A. PyTorch Native Pipeline
 *Cấu hình: BATCH_SIZE = 16, GRAD_ACCUM = 2 (Effective Batch Size = 32), SEQ_LEN = 256*
 
 | Số lượng Chunks (m) | Tỷ lệ Bubble (%) | Tốc độ huấn luyện (tokens/sec) | Thời gian một bước (sec/step) | Bộ nhớ đỉnh (Peak VRAM - GB) |
@@ -130,7 +130,7 @@ Dưới đây là bảng số liệu thu thập được từ thực nghiệm tr
 - Kết quả này hoàn toàn khớp với lý thuyết về hiện tượng Bubble: Tỷ lệ bong bóng nhàn rỗi giảm mạnh từ **33.33% xuống còn 5.88%**, giúp thời gian GPU nhàn rỗi chờ đợi nhau giảm thiểu tối đa.
 - Bộ nhớ đỉnh (Peak VRAM) duy trì cực kỳ ổn định quanh mức **5.96 - 6.18 GB**, do kích thước của mỗi micro-batch nhỏ hơn giúp giảm lượng activation lưu trữ tạm thời tại một thời điểm trên card.
 
-### B. DeepSpeed Pipeline Parallelism (Trích xuất từ `log/deepspeed_metrics.json`)
+### B. DeepSpeed Pipeline Parallelism
 *Cấu hình: EFFECTIVE_BS = 16, SEQ_LEN = 256*
 
 | Số lượng Chunks (m) | Tỷ lệ Bubble (%) | Tốc độ huấn luyện (tokens/sec) | Thời gian một bước (sec/step) | Bộ nhớ đỉnh (Peak VRAM - GB) |
@@ -165,6 +165,7 @@ Dưới đây là bảng số liệu thu thập được từ thực nghiệm tr
 ## 7. Hướng dẫn chạy thử nghiệm và Vẽ biểu đồ
 
 ### Yêu cầu môi trường
+- Kaggle
 - Python >= 3.10
 - PyTorch >= 2.1 với hỗ trợ CUDA và NCCL
 - Các thư viện bổ trợ: `transformers`, `datasets`, `bitsandbytes`, `deepspeed`, `accelerate`, `matplotlib`, `numpy`
@@ -178,22 +179,18 @@ pip install -q datasets bitsandbytes deepspeed accelerate matplotlib numpy
     ```bash
     python onegpu_GC.py
     ```
-    *Tệp kết quả `step2_metrics.json` sẽ được tạo ra sau khi hoàn tất.*
 
 2.  **Chạy PyTorch Native Pipeline (2 GPU)**:
     ```bash
     python ddp_v2.py
     ```
-    *Tệp kết quả `log/pytorch_metrics.json` chứa thông số của 4 cấu hình chunks sẽ được sinh ra.*
 
 3.  **Chạy DeepSpeed Pipeline (2 GPU)**:
     ```bash
     python dp.py
     ```
-    *Tệp kết quả `log/deepspeed_metrics.json` sẽ được sinh ra.*
-
+    
 4.  **Tự động cập nhật và vẽ lại toàn bộ 5 biểu đồ**:
     ```bash
     python3 plot_charts.py
     ```
-    *Chương trình sẽ tự động nạp các tệp log mới nhất từ thư mục `log/` để vẽ lại các biểu đồ chính xác nhất vào thư mục `charts/`.*
