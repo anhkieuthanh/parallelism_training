@@ -15,7 +15,7 @@ Khi kích thước của các mô hình ngôn ngữ lớn ngày càng tăng (ví
 ## 2. Cấu hình nền tảng, mô hình và tập dữ liệu
 
 ### Cấu hình nền tảng phần cứng
-- **Số lượng GPU**: 2 GPU (ví dụ: 2x NVIDIA Tesla T4, mỗi GPU có 16GB VRAM GDDR6).
+- **Số lượng GPU**: 2 GPU (NVIDIA Tesla T4, mỗi GPU có 16GB VRAM GDDR6).
 - **Kết nối liên GPU**: NCCL backend hỗ trợ truyền thông điểm-điểm (P2P) nhanh chóng giữa GPU 0 và GPU 1.
 
 ### Cấu hình mô hình
@@ -113,9 +113,9 @@ Khi áp dụng vào hệ thống **2 GPU ($p = 2$)**, ta có các tỷ lệ lý 
 
 ## 5. Kết quả thực nghiệm thực tế
 
-Dưới đây là bảng số liệu thu thập được từ thực nghiệm trên hệ thống 2 GPU T4 (16GB VRAM):
+Dưới đây là bảng số liệu thu thập được từ thực nghiệm trên hệ thống 2 GPU T4 (16GB VRAM) được lưu trữ tại thư mục `log/`:
 
-### A. PyTorch Native Pipeline (Trích xuất từ `step3_metrics.json`)
+### A. PyTorch Native Pipeline (Trích xuất từ `log/pytorch_metrics.json`)
 *Cấu hình: BATCH_SIZE = 16, GRAD_ACCUM = 2 (Effective Batch Size = 32), SEQ_LEN = 256*
 
 | Số lượng Chunks (m) | Tỷ lệ Bubble (%) | Tốc độ huấn luyện (tokens/sec) | Thời gian một bước (sec/step) | Bộ nhớ đỉnh (Peak VRAM - GB) |
@@ -128,60 +128,72 @@ Dưới đây là bảng số liệu thu thập được từ thực nghiệm tr
 **Nhận xét**: 
 - Khi số lượng chunks tăng từ **2 lên 16**, tốc độ huấn luyện tăng rõ rệt từ **324.8 tokens/s lên 571.4 tokens/s** (tăng ~76.5%), trong khi thời gian thực thi mỗi bước giảm tương ứng từ **25.224s xuống còn 14.336s**.
 - Kết quả này hoàn toàn khớp với lý thuyết về hiện tượng Bubble: Tỷ lệ bong bóng nhàn rỗi giảm mạnh từ **33.33% xuống còn 5.88%**, giúp thời gian GPU nhàn rỗi chờ đợi nhau giảm thiểu tối đa.
-- Bộ nhớ đỉnh (Peak VRAM) có xu hướng giảm nhẹ và duy trì cực kỳ ổn định quanh mức **5.96 - 6.18 GB**, do kích thước của mỗi micro-batch nhỏ hơn giúp giảm lượng activation lưu trữ tạm thời tại một thời điểm trên card.
+- Bộ nhớ đỉnh (Peak VRAM) duy trì cực kỳ ổn định quanh mức **5.96 - 6.18 GB**, do kích thước của mỗi micro-batch nhỏ hơn giúp giảm lượng activation lưu trữ tạm thời tại một thời điểm trên card.
 
-### B. DeepSpeed Pipeline Parallelism (Trích xuất từ log chạy của `dp.py`)
+### B. DeepSpeed Pipeline Parallelism (Trích xuất từ `log/deepspeed_metrics.json`)
 *Cấu hình: EFFECTIVE_BS = 16, SEQ_LEN = 256*
 
-| Số lượng Chunks (m) | Tỷ lệ Bubble (%) | Tốc độ huấn luyện (tokens/sec) | Thời gian một bước (sec/step) | Bộ nhớ tĩnh đã cấp phát (Allocated VRAM) |
+| Số lượng Chunks (m) | Tỷ lệ Bubble (%) | Tốc độ huấn luyện (tokens/sec) | Thời gian một bước (sec/step) | Bộ nhớ đỉnh (Peak VRAM - GB) |
 | :---: | :---: | :---: | :---: | :---: |
-| **4** | 20.00% | 258.1 | 15.872s | 1.55 GB |
-| **8** | 11.11% | 284.5 | 14.397s | 1.55 GB |
-| **16** | 5.88% | 298.3 | 13.730s | 1.55 GB |
+| **4** | 20.00% | 260.9 | 15.714s | 12.46 GB |
+| **8** | 11.11% | 284.6 | 14.393s | 12.36 GB |
+| **16** | 5.88% | 299.9 | 13.661s | 12.31 GB |
 
 **Giải thích sự khác biệt giữa PyTorch Native và DeepSpeed**:
-1. **Dung lượng VRAM**: DeepSpeed chỉ tiêu tốn **1.55 GB VRAM** tĩnh được cấp phát cho mô hình và optimizer trên mỗi GPU, thấp hơn nhiều so với mức ~5-6 GB của PyTorch Native. Đây là nhờ sự kết hợp cực kỳ hiệu quả giữa chia nhỏ Pipeline và **ZeRO Stage 1** (phân mảnh optimizer states).
+1. **Dung lượng VRAM đỉnh (Peak VRAM)**: 
+   - Dù mức VRAM cấp phát tĩnh cho mô hình của DeepSpeed rất thấp (chỉ **1.55 GB** so với mức ~5 GB của PyTorch Native nhờ tối ưu hóa phân mảnh optimizer states của **ZeRO-1**), nhưng VRAM đỉnh thực tế đạt **~12.3 GB**.
+   - Điều này do DeepSpeed tự động cấp phát một vùng đệm bộ nhớ truyền thông NCCL tĩnh lớn (bao gồm các tham số kích thước như `reduce_bucket_size=5e8` và `allgather_bucket_size=5e8`) cùng với việc quản lý các tensor kích hoạt và gradient tập trung để tối ưu hóa hiệu năng truyền tải P2P liên GPU.
 2. **Tốc độ huấn luyện (tokens/sec)**:
-   - Số liệu ghi nhận tốc độ tokens/s của DeepSpeed thấp hơn PyTorch Native (khoảng 258 - 298 tokens/s so với 431 - 571 tokens/s).
-   - **Nguyên nhân kỹ thuật**: Sự chênh lệch này đến từ việc cấu hình kích thước Batch Size hiệu dụng khác nhau giữa 2 file chạy. PyTorch Native sử dụng `BATCH_SIZE = 16` kết hợp `GRAD_ACCUM = 2` trên mỗi GPU, mang lại tổng Batch Size hiệu dụng là **32** (tương đương **8192 tokens** xử lý mỗi bước). Trong khi đó, DeepSpeed được cấu hình với `EFFECTIVE_BS = 16` làm tổng kích thước batch chung cho cả hệ thống (tương đương **4096 tokens** mỗi bước), dẫn đến kích thước micro-batch trên mỗi GPU bị đẩy xuống cực kỳ nhỏ (chỉ còn 4, 2, và 1 sample tương ứng với chunks 4, 8, 16).
+   - Tốc độ tokens/s của DeepSpeed thấp hơn PyTorch Native trong thực nghiệm (khoảng 260 - 299 tokens/s so với 431 - 571 tokens/s).
+   - **Nguyên nhân kỹ thuật**: Sự chênh lệch này hoàn toàn do cấu hình kích thước Batch Size hiệu dụng khác nhau giữa 2 chương trình. PyTorch Native sử dụng `BATCH_SIZE = 16` kết hợp `GRAD_ACCUM = 2` trên mỗi GPU, mang lại tổng Batch Size hiệu dụng là **32** (xử lý **8192 tokens/bước**). Trong khi đó, DeepSpeed được cấu hình với `EFFECTIVE_BS = 16` làm tổng kích thước batch chung cho cả hệ thống (tương đương **4096 tokens/bước**), dẫn đến kích thước micro-batch trên mỗi GPU bị đẩy xuống cực kỳ nhỏ (chỉ còn 4, 2, và 1 sample tương ứng với chunks 4, 8, 16).
    - Kích thước micro-batch quá nhỏ (ví dụ: micro_batch = 1 ở cấu hình chunks = 16) khiến GPU không thể tối ưu hóa các phép toán song song trên lõi Tensor Cores, làm giảm hiệu suất tính toán thực tế của phần cứng và tăng tỷ lệ overhead truyền thông NCCL trên mỗi token.
 
 ---
 
-## 6. Hướng dẫn chạy thử nghiệm và Cập nhật kết quả
+## 6. Biểu đồ trực quan hóa kết quả thực nghiệm
+
+Để phục vụ báo cáo và phân tích kết quả trực quan, dự án đã tích hợp kịch bản vẽ biểu đồ tự động `plot_charts.py`. Toàn bộ 5 biểu đồ phân tích hiệu năng đã được vẽ thành công và lưu trữ tại thư mục cục bộ [charts/](file:///Users/atif/Downloads/Huấn luyện song song Log/charts):
+
+1.  **Đường cong giảm Loss qua các bước (Loss Curves)**: Trực quan hóa tốc độ hội tụ ổn định của mô hình ứng với các cấu hình chunks [1_loss_curves.png](file:///Users/atif/Downloads/Huấn luyện song song Log/charts/1_loss_curves.png).
+2.  **Sự ổn định của Tốc độ Huấn luyện (Throughput Stability)**: Theo dõi tính ổn định của tốc độ xử lý tokens/s qua 100 bước [2_throughput_stability.png](file:///Users/atif/Downloads/Huấn luyện song song Log/charts/2_throughput_stability.png).
+3.  **Tác động của Chunks đến Tỷ lệ Bubble & Thời gian xử lý**: Chứng minh mối tương quan chặt chẽ giữa tỷ lệ bong bóng và thời gian trễ của bước huấn luyện [3_chunks_vs_bubble_latency.png](file:///Users/atif/Downloads/Huấn luyện song song Log/charts/3_chunks_vs_bubble_latency.png).
+4.  **So sánh tốc độ xử lý (Throughput Comparison)**: So sánh tokens/sec trực quan giữa Baseline 1GPU, PyTorch Native PP và DeepSpeed PP [4_throughput_comparison.png](file:///Users/atif/Downloads/Huấn luyện song song Log/charts/4_throughput_comparison.png).
+5.  **So sánh chiếm dụng bộ nhớ đỉnh (Peak VRAM Comparison)**: Đối chiếu lượng VRAM lớn nhất tiêu hao của các phương án so với giới hạn vật lý 16GB [5_vram_comparison.png](file:///Users/atif/Downloads/Huấn luyện song song Log/charts/5_vram_comparison.png).
+
+---
+
+## 7. Hướng dẫn chạy thử nghiệm và Vẽ biểu đồ
 
 ### Yêu cầu môi trường
 - Python >= 3.10
 - PyTorch >= 2.1 với hỗ trợ CUDA và NCCL
-- Các thư viện bổ trợ: `transformers`, `datasets`, `bitsandbytes`, `deepspeed`, `accelerate`
+- Các thư viện bổ trợ: `transformers`, `datasets`, `bitsandbytes`, `deepspeed`, `accelerate`, `matplotlib`, `numpy`
 ```bash
-pip install -q datasets bitsandbytes deepspeed accelerate
+pip install -q datasets bitsandbytes deepspeed accelerate matplotlib numpy
 ```
 
 ### Cách chạy thực nghiệm
 
-1. **Chạy Baseline OOM (Không dùng Gradient Checkpointing)**:
-   ```bash
-   python onegpu_baseline.py
-   ```
-   *Kỳ vọng: Chương trình sẽ dừng lại và hiển thị thông báo lỗi `CUDA Out of Memory`.*
+1.  **Chạy Baseline thành công trên 1 GPU (Có Gradient Checkpointing)**:
+    ```bash
+    python onegpu_GC.py
+    ```
+    *Tệp kết quả `step2_metrics.json` sẽ được tạo ra sau khi hoàn tất.*
 
-2. **Chạy Baseline thành công trên 1 GPU (Có Gradient Checkpointing)**:
-   ```bash
-   python onegpu_GC.py
-   ```
-   *Tệp kết quả `step2_metrics.json` sẽ được tạo ra sau khi hoàn tất.*
+2.  **Chạy PyTorch Native Pipeline (2 GPU)**:
+    ```bash
+    python ddp_v2.py
+    ```
+    *Tệp kết quả `log/pytorch_metrics.json` chứa thông số của 4 cấu hình chunks sẽ được sinh ra.*
 
-3. **Chạy PyTorch Native Pipeline (2 GPU)**:
-   ```bash
-   python ddp_v2.py
-   ```
-   *Tệp kết quả `step3_metrics.json` chứa thông số của 4 cấu hình chunks sẽ được sinh ra.*
+3.  **Chạy DeepSpeed Pipeline (2 GPU)**:
+    ```bash
+    python dp.py
+    ```
+    *Tệp kết quả `log/deepspeed_metrics.json` sẽ được sinh ra.*
 
-4. **Chạy DeepSpeed Pipeline (2 GPU)**:
-   ```bash
-   python dp.py
-   ```
-   *Tệp kết quả `step3_deepspeed_metrics.json` sẽ được sinh ra.*
-
-> **Ghi chú cho người dùng**: Sau khi chạy đầy đủ các chương trình trên hệ thống của bạn, bạn có thể đọc các tệp tin `.json` kết quả được sinh ra và cập nhật trực tiếp các thông số chính xác vào bảng số liệu ở mục **5. Kết quả thực nghiệm thực tế** để hoàn thiện báo cáo thực hành của mình.
+4.  **Tự động cập nhật và vẽ lại toàn bộ 5 biểu đồ**:
+    ```bash
+    python3 plot_charts.py
+    ```
+    *Chương trình sẽ tự động nạp các tệp log mới nhất từ thư mục `log/` để vẽ lại các biểu đồ chính xác nhất vào thư mục `charts/`.*
