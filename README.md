@@ -19,7 +19,7 @@ Khi kích thước của các mô hình ngôn ngữ lớn ngày càng tăng (ví
 - **Kết nối liên GPU**: NCCL backend hỗ trợ truyền thông điểm-điểm (P2P) nhanh chóng giữa GPU 0 và GPU 1.
 
 ### Cấu hình mô hình
-- **Mô hình**: `gpt2-xl` (Hugging Face)
+- **Mô hình**: `gpt2-xl`
 - **Số lượng tham số**: 1.55 tỷ tham số.
 - **Số lượng layer**: 48 transformer blocks.
 - **Kiểu dữ liệu (Dtype)**: `torch.bfloat16` (giúp giảm bộ nhớ mô hình đi 50% so với FP32 mà vẫn bảo toàn dải động số học rộng, không cần sử dụng bộ cân bằng thang đo gradient - GradScaler).
