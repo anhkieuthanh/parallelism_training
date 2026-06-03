@@ -1,0 +1,88 @@
+{
+  "method": "1GPU_GC_bf16_adamw8bit",
+  "config": {
+    "dtype": "bfloat16",
+    "seq_len": 256,
+    "batch_size": 3,
+    "grad_accum": 2,
+    "effective_bs": 6
+  },
+  "steps": 100,
+  "avg_tokens_sec": 171.4,
+  "avg_sec_per_step": 8.968,
+  "peak_vram_gb": 9.44,
+  "final_loss": 0.3978,
+  "total_time_sec": 896.9,
+  "per_step_metrics": [
+    {
+      "step": 10,
+      "loss": 2.1293,
+      "sec_per_step": 8.481,
+      "tokens_per_sec": 181.1,
+      "peak_vram_gb": 9.44
+    },
+    {
+      "step": 20,
+      "loss": 1.7576,
+      "sec_per_step": 8.777,
+      "tokens_per_sec": 175.0,
+      "peak_vram_gb": 9.44
+    },
+    {
+      "step": 30,
+      "loss": 2.0264,
+      "sec_per_step": 9.015,
+      "tokens_per_sec": 170.4,
+      "peak_vram_gb": 9.44
+    },
+    {
+      "step": 40,
+      "loss": 0.4104,
+      "sec_per_step": 8.973,
+      "tokens_per_sec": 171.2,
+      "peak_vram_gb": 9.44
+    },
+    {
+      "step": 50,
+      "loss": 2.3925,
+      "sec_per_step": 9.172,
+      "tokens_per_sec": 167.5,
+      "peak_vram_gb": 9.44
+    },
+    {
+      "step": 60,
+      "loss": 0.7656,
+      "sec_per_step": 9.13,
+      "tokens_per_sec": 168.2,
+      "peak_vram_gb": 9.44
+    },
+    {
+      "step": 70,
+      "loss": 2.5605,
+      "sec_per_step": 9.137,
+      "tokens_per_sec": 168.1,
+      "peak_vram_gb": 9.44
+    },
+    {
+      "step": 80,
+      "loss": 1.1753,
+      "sec_per_step": 9.062,
+      "tokens_per_sec": 169.5,
+      "peak_vram_gb": 9.44
+    },
+    {
+      "step": 90,
+      "loss": 1.5706,
+      "sec_per_step": 9.106,
+      "tokens_per_sec": 168.7,
+      "peak_vram_gb": 9.44
+    },
+    {
+      "step": 100,
+      "loss": 0.3978,
+      "sec_per_step": 9.038,
+      "tokens_per_sec": 169.9,
+      "peak_vram_gb": 9.44
+    }
+  ]
+}

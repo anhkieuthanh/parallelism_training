@@ -283,7 +283,7 @@ if __name__ == "__main__":
     with open(LOG_FILE, "w") as f:
         json.dump(all_results, f, indent=2)
 
-    print(f"\n{'='*60}\n✅ Saved to {LOG_FILE}")
+    print(f"\n{'='*60}\n Saved to {LOG_FILE}")
     print(f"\n{'chunks':>8} | {'tok/s':>12} | {'bubble':>8} | {'sec/step':>10} | {'loss':>8}")
     print("-" * 58)
     for r in all_results:

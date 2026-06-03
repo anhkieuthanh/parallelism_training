@@ -85,7 +85,6 @@ def get_memory_stats(device):
     }
 
 def get_dataloader(tokenizer, rank, world_size):
-    # 1. Cho GPU 0 tải và xử lý data trước
     if rank == 0:
         dataset = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
         def tokenize(examples):
@@ -93,11 +92,9 @@ def get_dataloader(tokenizer, rank, world_size):
         tokenized = dataset.map(tokenize, batched=True, remove_columns=["text"])
         tokenized.set_format(type="torch", columns=["input_ids", "attention_mask"])
         tokenized = tokenized.filter(lambda x: x["input_ids"].sum() > 0)
-        
-    # 2. Ép TẤT CẢ GPU gặp nhau ở đây (GPU 1 sẽ đợi GPU 0 làm xong việc trên)
+
     dist.barrier()
 
-    # 3. Bây giờ GPU 1 mới vào việc (tốc độ sẽ tính bằng mili-giây vì đọc thẳng từ cache)
     if rank != 0:
         dataset = load_dataset("wikitext", "wikitext-2-raw-v1", split="train")
         def tokenize(examples):
@@ -106,7 +103,6 @@ def get_dataloader(tokenizer, rank, world_size):
         tokenized.set_format(type="torch", columns=["input_ids", "attention_mask"])
         tokenized = tokenized.filter(lambda x: x["input_ids"].sum() > 0)
 
-    # 4. Gặp nhau lần nữa cho chắc cú trước khi chia data
     dist.barrier()
 
     sampler = DistributedSampler(tokenized, num_replicas=world_size, rank=rank, shuffle=True)
@@ -137,12 +133,8 @@ def train_worker(rank, world_size, chunks, result_queue):
 
     optimizer = bnb.optim.AdamW8bit(stage_mod.parameters(), lr=5e-5)
 
-    # Build stage & schedule (1 lần duy nhất, không tạo lại trong loop)
     stage = PipelineStage(stage_mod, stage_index=rank,
                           num_stages=world_size, device=device)
-
-    # Stage0 output: (hidden, mask) → 2 tensors → TensorChunkSpec cho cả 2
-    # Stage1 nhận (hidden, mask) → labels truyền qua target
     schedule = ScheduleGPipe(
         stage,
         n_microbatches=chunks,
@@ -214,7 +206,7 @@ def train_worker(rank, world_size, chunks, result_queue):
                     break
 
     except torch.cuda.OutOfMemoryError as e:
-        print(f"[GPU{rank}] 💥 OOM: {e}")
+        print(f"[GPU{rank}] OOM: {e}")
 
     if rank == world_size - 1 and all_metrics:
         total_time     = time.time() - total_start

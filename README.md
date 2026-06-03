@@ -6,12 +6,6 @@ Repo này ghi lại quá trình thử nghiệm huấn luyện `gpt2-xl` trong b�
 - `2 GPU + PyTorch Native Pipeline Parallelism`
 - `2 GPU + DeepSpeed Pipeline Parallelism`
 
-Nguồn số liệu trong README này được lấy trực tiếp từ:
-
-- Notebook thực nghiệm: [final-version.ipynb](final-version.ipynb)
-- Baseline 1 GPU: [log/step2_metrics.json](log/step2_metrics.json)
-- PyTorch pipeline: [log/pytorch_metrics.json](log/pytorch_metrics.json)
-- DeepSpeed pipeline: [log/step3_deepspeed_metrics.json](log/step3_deepspeed_metrics.json)
 
 ## 1. Bài toán
 
@@ -35,19 +29,12 @@ Repo này đi từ baseline bị giới hạn trên 1 GPU, sau đó tối ưu b�
 - Dtype: `torch.bfloat16`
 - Optimizer: `bitsandbytes.optim.AdamW8bit`
 
-### Các script chính
-
-- OOM demo 1 GPU: [src/baseline_1gpu.py](src/baseline_1gpu.py)
-- 1 GPU + gradient checkpointing: [src/gradient_checkpointing_1gpu.py](src/gradient_checkpointing_1gpu.py)
-- 2 GPU + PyTorch native pipeline: [src/pytorch_2gpu.py](src/pytorch_2gpu.py)
-- 2 GPU + DeepSpeed pipeline: [src/deepspeed_2gpu.py](src/deepspeed_2gpu.py)
-- Vẽ biểu đồ từ log: [plot_charts.py](plot_charts.py)
 
 ## 3. Thiết kế từng bước
 
-### Bước 1: OOM demo trên 1 GPU
+### Task 1: OOM demo trên 1 GPU
 
-`src/baseline_1gpu.py` chạy `gpt2-xl` theo cách trực tiếp trên 1 GPU với:
+Chạy `gpt2-xl` theo cách trực tiếp trên 1 GPU với:
 
 - `BATCH_SIZE = 3`
 - `GRAD_ACCUM = 2`
@@ -57,22 +44,22 @@ Repo này đi từ baseline bị giới hạn trên 1 GPU, sau đó tối ưu b�
 
 Mục đích của bước này là tái hiện giới hạn memory và dùng nó làm mốc để so với các bước tối ưu phía sau.
 
-### Bước 2: 1 GPU + Gradient Checkpointing
+### Task 2: 1 GPU + Gradient Checkpointing
 
-`src/gradient_checkpointing_1gpu.py` giữ nguyên tinh thần chạy 1 GPU nhưng bật `model.gradient_checkpointing_enable()` để đánh đổi compute lấy VRAM. Đây là baseline “tiết kiệm phần cứng nhất” trong repo.
+Giữ nguyên tinh thần chạy 1 GPU nhưng bật `model.gradient_checkpointing_enable()` để đánh đổi compute lấy VRAM. Đây là baseline “tiết kiệm phần cứng nhất” trong repo.
 
-### Bước 3: 2 GPU + PyTorch Native Pipeline Parallelism
+### Task 3: 2 GPU + PyTorch Native Pipeline Parallelism
 
-`src/pytorch_2gpu.py` chia model thành 2 stage thủ công:
+Chia model thành 2 stage thủ công:
 
 - GPU 0: embedding + 24 blocks đầu
 - GPU 1: 24 blocks sau + `ln_f` + `lm_head`
 
 Batch được chia thành nhiều `chunks` để giảm pipeline bubble. Repo hiện có log cho `chunks = 2, 4, 8, 16`.
 
-### Bước 4: 2 GPU + DeepSpeed Pipeline Parallelism
+### Task 4: 2 GPU + DeepSpeed Pipeline Parallelism
 
-`src/deepspeed_2gpu.py` dùng `deepspeed.PipelineModule`, vẫn chia model thành 2 stage nhưng để DeepSpeed quản lý pipeline runtime và kết hợp thêm `ZeRO stage 1`. Repo hiện có log cho `chunks = 4, 8, 16`.
+Dùng `deepspeed.PipelineModule`, vẫn chia model thành 2 stage nhưng để DeepSpeed quản lý pipeline runtime và kết hợp thêm `ZeRO stage 1`. Repo hiện có log cho `chunks = 4, 8, 16`.
 
 ## 4. Bubble ratio và ý nghĩa của chunks
 
@@ -103,8 +90,8 @@ Khi tăng `chunks`, bubble ratio giảm:
 | Phương án | Cấu hình đại diện | Throughput (tok/s) | Sec/step | Peak VRAM (GB) | Final loss |
 | :-- | :-- | --: | --: | --: | --: |
 | 1 GPU + GC | batch 3, grad accum 2 | 171.4 | 8.968 | 9.436 | 0.3978 |
-| PyTorch PP tốt nhất | chunks 16 | 571.4 | 14.336 | 5.964 | 5.1786 |
-| DeepSpeed PP tốt nhất | chunks 16 | 304.4 | 13.458 | 12.309 | 2.6875 |
+| PyTorch PP | chunks 16 | 571.4 | 14.336 | 5.964 | 5.1786 |
+| DeepSpeed PP | chunks 16 | 304.4 | 13.458 | 12.309 | 2.6875 |
 
 ### Kết quả 1 GPU + Gradient Checkpointing
 
@@ -224,16 +211,3 @@ python src/deepspeed_2gpu.py
 ```bash
 python3 plot_charts.py
 ```
-
-## 8. Cấu trúc output đáng chú ý
-
-- `log/step2_metrics.json`: metrics của baseline 1 GPU + GC
-- `log/pytorch_metrics.json`: metrics PyTorch PP theo từng cấu hình chunks
-- `log/step3_deepspeed_metrics.json`: metrics DeepSpeed PP theo từng cấu hình chunks
-- `charts/`: ảnh biểu đồ dùng cho README
-
-## 9. Gợi ý mở rộng
-
-- Chuẩn hóa effective batch size giữa PyTorch PP và DeepSpeed PP để benchmark công bằng hơn.
-- Thêm cấu hình `chunks > 16` để xem ngưỡng diminishing returns.
-- Đo thêm GPU utilization và NCCL communication overhead để giải thích sâu hơn chênh lệch giữa hai pipeline runtime.

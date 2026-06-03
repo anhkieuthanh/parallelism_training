@@ -1,0 +1,302 @@
+[
+  {
+    "method": "2GPU_deepspeed_pipeline",
+    "chunks": 4,
+    "bubble_ratio": 0.2,
+    "config": {
+      "dtype": "bfloat16",
+      "seq_len": 256,
+      "batch_size": 16,
+      "effective_bs": 16,
+      "split_layer": 24
+    },
+    "steps": 100,
+    "avg_tokens_sec": 259.4,
+    "avg_sec_per_step": 15.795,
+    "peak_vram_gb": 1.55,
+    "final_loss": 2.7344,
+    "total_time_sec": 1579.5,
+    "per_step_metrics": [
+      {
+        "step": 10,
+        "loss": 1.7812,
+        "sec_per_step": 15.283,
+        "tokens_per_sec": 268.0,
+        "chunks": 4,
+        "bubble_ratio": 0.2
+      },
+      {
+        "step": 20,
+        "loss": 3.75,
+        "sec_per_step": 15.891,
+        "tokens_per_sec": 257.8,
+        "chunks": 4,
+        "bubble_ratio": 0.2
+      },
+      {
+        "step": 30,
+        "loss": 3.0,
+        "sec_per_step": 15.896,
+        "tokens_per_sec": 257.7,
+        "chunks": 4,
+        "bubble_ratio": 0.2
+      },
+      {
+        "step": 40,
+        "loss": 1.875,
+        "sec_per_step": 15.917,
+        "tokens_per_sec": 257.3,
+        "chunks": 4,
+        "bubble_ratio": 0.2
+      },
+      {
+        "step": 50,
+        "loss": 1.875,
+        "sec_per_step": 15.797,
+        "tokens_per_sec": 259.3,
+        "chunks": 4,
+        "bubble_ratio": 0.2
+      },
+      {
+        "step": 60,
+        "loss": 1.4297,
+        "sec_per_step": 15.9,
+        "tokens_per_sec": 257.6,
+        "chunks": 4,
+        "bubble_ratio": 0.2
+      },
+      {
+        "step": 70,
+        "loss": 3.4688,
+        "sec_per_step": 15.797,
+        "tokens_per_sec": 259.3,
+        "chunks": 4,
+        "bubble_ratio": 0.2
+      },
+      {
+        "step": 80,
+        "loss": 2.2031,
+        "sec_per_step": 15.718,
+        "tokens_per_sec": 260.6,
+        "chunks": 4,
+        "bubble_ratio": 0.2
+      },
+      {
+        "step": 90,
+        "loss": 1.5312,
+        "sec_per_step": 15.882,
+        "tokens_per_sec": 257.9,
+        "chunks": 4,
+        "bubble_ratio": 0.2
+      },
+      {
+        "step": 100,
+        "loss": 2.7344,
+        "sec_per_step": 15.872,
+        "tokens_per_sec": 258.1,
+        "chunks": 4,
+        "bubble_ratio": 0.2
+      }
+    ]
+  },
+  {
+    "method": "2GPU_deepspeed_pipeline",
+    "chunks": 8,
+    "bubble_ratio": 0.1111,
+    "config": {
+      "dtype": "bfloat16",
+      "seq_len": 256,
+      "batch_size": 16,
+      "effective_bs": 16,
+      "split_layer": 24
+    },
+    "steps": 100,
+    "avg_tokens_sec": 284.6,
+    "avg_sec_per_step": 14.395,
+    "peak_vram_gb": 1.55,
+    "final_loss": 2.6875,
+    "total_time_sec": 1439.5,
+    "per_step_metrics": [
+      {
+        "step": 10,
+        "loss": 1.75,
+        "sec_per_step": 14.442,
+        "tokens_per_sec": 283.6,
+        "chunks": 8,
+        "bubble_ratio": 0.1111
+      },
+      {
+        "step": 20,
+        "loss": 3.5312,
+        "sec_per_step": 14.352,
+        "tokens_per_sec": 285.4,
+        "chunks": 8,
+        "bubble_ratio": 0.1111
+      },
+      {
+        "step": 30,
+        "loss": 2.9531,
+        "sec_per_step": 14.424,
+        "tokens_per_sec": 284.0,
+        "chunks": 8,
+        "bubble_ratio": 0.1111
+      },
+      {
+        "step": 40,
+        "loss": 1.9219,
+        "sec_per_step": 14.435,
+        "tokens_per_sec": 283.8,
+        "chunks": 8,
+        "bubble_ratio": 0.1111
+      },
+      {
+        "step": 50,
+        "loss": 1.9531,
+        "sec_per_step": 14.402,
+        "tokens_per_sec": 284.4,
+        "chunks": 8,
+        "bubble_ratio": 0.1111
+      },
+      {
+        "step": 60,
+        "loss": 1.5156,
+        "sec_per_step": 14.453,
+        "tokens_per_sec": 283.4,
+        "chunks": 8,
+        "bubble_ratio": 0.1111
+      },
+      {
+        "step": 70,
+        "loss": 3.375,
+        "sec_per_step": 14.345,
+        "tokens_per_sec": 285.5,
+        "chunks": 8,
+        "bubble_ratio": 0.1111
+      },
+      {
+        "step": 80,
+        "loss": 2.1719,
+        "sec_per_step": 14.277,
+        "tokens_per_sec": 286.9,
+        "chunks": 8,
+        "bubble_ratio": 0.1111
+      },
+      {
+        "step": 90,
+        "loss": 1.4844,
+        "sec_per_step": 14.42,
+        "tokens_per_sec": 284.0,
+        "chunks": 8,
+        "bubble_ratio": 0.1111
+      },
+      {
+        "step": 100,
+        "loss": 2.6875,
+        "sec_per_step": 14.397,
+        "tokens_per_sec": 284.5,
+        "chunks": 8,
+        "bubble_ratio": 0.1111
+      }
+    ]
+  },
+  {
+    "method": "2GPU_deepspeed_pipeline",
+    "chunks": 16,
+    "bubble_ratio": 0.0588,
+    "config": {
+      "dtype": "bfloat16",
+      "seq_len": 256,
+      "batch_size": 16,
+      "effective_bs": 16,
+      "split_layer": 24
+    },
+    "steps": 100,
+    "avg_tokens_sec": 299.5,
+    "avg_sec_per_step": 13.675,
+    "peak_vram_gb": 1.55,
+    "final_loss": 2.75,
+    "total_time_sec": 1367.5,
+    "per_step_metrics": [
+      {
+        "step": 10,
+        "loss": 2.0156,
+        "sec_per_step": 13.73,
+        "tokens_per_sec": 298.3,
+        "chunks": 16,
+        "bubble_ratio": 0.0588
+      },
+      {
+        "step": 20,
+        "loss": 3.625,
+        "sec_per_step": 13.603,
+        "tokens_per_sec": 301.1,
+        "chunks": 16,
+        "bubble_ratio": 0.0588
+      },
+      {
+        "step": 30,
+        "loss": 3.0156,
+        "sec_per_step": 13.578,
+        "tokens_per_sec": 301.7,
+        "chunks": 16,
+        "bubble_ratio": 0.0588
+      },
+      {
+        "step": 40,
+        "loss": 1.8125,
+        "sec_per_step": 13.794,
+        "tokens_per_sec": 296.9,
+        "chunks": 16,
+        "bubble_ratio": 0.0588
+      },
+      {
+        "step": 50,
+        "loss": 1.8516,
+        "sec_per_step": 13.692,
+        "tokens_per_sec": 299.2,
+        "chunks": 16,
+        "bubble_ratio": 0.0588
+      },
+      {
+        "step": 60,
+        "loss": 1.4922,
+        "sec_per_step": 13.624,
+        "tokens_per_sec": 300.6,
+        "chunks": 16,
+        "bubble_ratio": 0.0588
+      },
+      {
+        "step": 70,
+        "loss": 3.4375,
+        "sec_per_step": 13.543,
+        "tokens_per_sec": 302.4,
+        "chunks": 16,
+        "bubble_ratio": 0.0588
+      },
+      {
+        "step": 80,
+        "loss": 2.2031,
+        "sec_per_step": 13.723,
+        "tokens_per_sec": 298.5,
+        "chunks": 16,
+        "bubble_ratio": 0.0588
+      },
+      {
+        "step": 90,
+        "loss": 1.5312,
+        "sec_per_step": 13.844,
+        "tokens_per_sec": 295.9,
+        "chunks": 16,
+        "bubble_ratio": 0.0588
+      },
+      {
+        "step": 100,
+        "loss": 2.75,
+        "sec_per_step": 13.618,
+        "tokens_per_sec": 300.8,
+        "chunks": 16,
+        "bubble_ratio": 0.0588
+      }
+    ]
+  }
+]

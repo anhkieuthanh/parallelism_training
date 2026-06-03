@@ -65,13 +65,13 @@ log_memory("after model load")
 
 print("\n[3/5] Enabling Gradient Checkpointing ...")
 model.gradient_checkpointing_enable()
-print("  ✅ gradient_checkpointing = True")
-print("  ℹ️  Recompute activations on backward → giảm VRAM, tăng compute ~20-30%")
+print("  gradient_checkpointing = True")
+print("  Recompute activations on backward → giảm VRAM, tăng compute ~20-30%")
 log_memory("after GC enable")
 
 print("\n[4/5] Setting up AdamW 8-bit optimizer ...")
-print("  ℹ️  bf16 không cần GradScaler — dynamic range đủ rộng")
-print("  ℹ️  AdamW8bit: optimizer states ở INT8 → giảm ~4x VRAM so FP32 AdamW")
+print("  bf16 không cần GradScaler — dynamic range đủ rộng")
+print("  AdamW8bit: optimizer states ở INT8 → giảm ~4x VRAM so FP32 AdamW")
 optimizer = bnb.optim.AdamW8bit(model.parameters(), lr=5e-5)
 log_memory("after optimizer init")
 
@@ -134,7 +134,7 @@ try:
                 break
 
 except torch.cuda.OutOfMemoryError as e:
-    print(f"\n💥 OOM at optimizer_step={optimizer_step}, micro_step={micro_step}")
+    print(f"\n OOM at optimizer_step={optimizer_step}, micro_step={micro_step}")
     print(f"   Error: {e}")
     log_memory("OOM point")
 
@@ -147,7 +147,7 @@ if all_metrics:
     peak_vram      = max(m["peak_vram_gb"]   for m in all_metrics)
 
     print("\n" + "=" * 60)
-    print("📊 SUMMARY — Bước 2 (1 GPU + GC + bf16)")
+    print("SUMMARY — Bước 2 (1 GPU + GC + bf16)")
     print("=" * 60)
     print(f"  Steps completed  : {optimizer_step}")
     print(f"  Avg tokens/sec   : {avg_tokens_sec:.1f}")
@@ -176,4 +176,4 @@ if all_metrics:
     }
     with open(LOG_FILE, "w") as f:
         json.dump(summary, f, indent=2)
-    print(f"\n✅ Metrics saved to {LOG_FILE}")
+    print(f"\nMetrics saved to {LOG_FILE}")
